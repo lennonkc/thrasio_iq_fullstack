@@ -1,86 +1,648 @@
-### 数据分析师场景
 
-- **场景 1**：市场部分析师在 Web 应用的聊天框中输入：“帮我分析上个月各产品线的销售额，并按区域生成柱状图，对比去年同期数据。”
-- **场景 2**：销售经理提问：“查询本季度销售额排名前十的客户及其对应的销售负责人，并用表格展示。”
-  Agent 将理解这些需求，自动生成并执行 BigQuery SQL，然后调用 Looker API 创建或更新相应的图表/表格，并将结果（如 Looker 图表链接或嵌入代码）返回给用户。
+# BigQuery x Looker 数据分析 Agent 开发指南
+
+## 概述
+
+本文档详细描述了 BigQuery x Looker 数据分析 Agent 的设计、实现和部署方案。该 Agent 是 Thrasio IQ 企业级多 Agent 系统的核心组件之一，专门负责处理数据查询、分析和可视化任务。
+
+## 1. Agent 架构设计
+
+### 1.1 技术栈
+
+基于项目技术栈，该 Agent 采用以下核心技术：
+
+- **AI 核心**：
+  - **编排框架**：LangGraph（状态管理和工作流编排）
+  - **模型服务**：Google Vertex AI（Gemini Pro）
+  - **数据校验**：PydanticAI（输入输出验证）
+  - **RAG 系统**：LlamaIndex（知识库检索）
+
+- **数据层**：
+  - **数据仓库**：Google BigQuery
+  - **商业智能**：Google Looker
+  - **向量搜索**：Vertex AI Vector Search（Schema 和业务逻辑检索）
+  - **状态存储**：Google Firestore（会话状态）
+
+- **部署层**：
+  - **计算服务**：Google Cloud Run（Worker 服务）
+  - **队列系统**：Google Pub/Sub（异步任务处理）
+  - **密钥管理**：Google Secret Manager
+
+### 1.2 项目结构映射
+
+根据项目目录结构，Agent 相关代码分布如下：
+
+```
+services/worker/app/
+├── agents/
+│   ├── base_agent.py              # 基础 Agent 类
+│   └── data_analysis_agent.py     # BigQuery x Looker Agent 实现
+├── tools/
+│   ├── bigquery/
+│   │   ├── __init__.py
+│   │   ├── client.py              # BigQuery 客户端封装
+│   │   ├── query_builder.py       # SQL 查询构建器
+│   │   └── schema_manager.py      # Schema 管理
+│   └── looker/
+│       ├── __init__.py
+│       ├── client.py              # Looker API 客户端
+│       ├── dashboard_manager.py   # 仪表板管理
+│       └── visualization.py       # 可视化配置
+├── workflows/
+│   └── data_analysis_workflow.py  # LangGraph 工作流定义
+├── memory/
+│   ├── conversation_memory.py     # 对话记忆
+│   └── vector_memory.py           # 向量记忆（Schema 检索）
+└── processors/
+    └── data_analysis_processor.py # 数据分析任务处理器
+```
+
+## 2. 业务场景
+
+### 2.1 核心使用场景
+
+- **场景 1**：市场部分析师在 Next.js Web 应用的聊天界面中输入："帮我分析上个月各产品线的销售额，并按区域生成柱状图，对比去年同期数据。"
+- **场景 2**：销售经理通过 Slack Bot 提问："查询本季度销售额排名前十的客户及其对应的销售负责人，并用表格展示。"
+- **场景 3**：高管通过移动端询问："生成本年度各部门预算执行情况的趋势分析报告。"
+
+Agent 将理解这些需求，自动生成并执行 BigQuery SQL，然后调用 Looker API 创建或更新相应的图表/表格，并将结果返回给用户。
+
+### 2.2 支持的分析类型
+
+- **描述性分析**：历史数据统计、趋势分析
+- **对比分析**：同比、环比、多维度对比
+- **预测分析**：基于历史数据的趋势预测
+- **实时分析**：近实时数据查询和监控
+
+## 3. 系统架构流程
+
+### 3.1 整体架构图
 
 ```mermaid
----
-title: Interaction Flow for BigQuery x Looker Agent
----
-flowchart LR
-    User("User"):::actorStyle
+graph TD
+    %% Layer 1: User Interfaces
+    subgraph "Layer 1: User Interfaces"
+        direction LR
+        NextJS["Next.js Web App<br/>(shadcn/ui + NextAuth.js)"]:::frontendStyle
+        SlackBot["Slack Bot Service"]:::frontendStyle
+        Mobile["Mobile App<br/>(Future)"]:::frontendStyle
+    end
 
-    subgraph Core_System_Flow [Core System Flow]
+    %% Layer 2: API Gateway & Authentication
+    subgraph "Layer 2: API Gateway & Security"
+        APIGateway["Google API Gateway<br/>(JWT Authorizer)"]:::gatewayStyle
+        Auth["NextAuth.js<br/>(Google OAuth)"]:::authStyle
+    end
+
+    %% Layer 3: Core Services
+    subgraph "Layer 3: Core Services (Cloud Run)"
+        FastAPI["FastAPI Service<br/>(Request Handler)"]:::apiStyle
+        PubSub["Cloud Pub/Sub<br/>(Task Queue)"]:::queueStyle
+    end
+
+    %% Layer 4: Agent Processing
+    subgraph "Layer 4: Agent Worker (Cloud Run)"
         direction TB
-        WebApp_Node["Web Application"]:::systemNodeStyle
-        ADK_Core_Node[["ADK Core Service"]]:::systemNodeStyle
-
-        subgraph Agent_Interaction_Loop [Agent Interaction Loop]
-            direction TB
-            BQL_Agent["BigQuery x Looker Agent"]:::agentNodeStyle
-            MCP_Server_BQL(["MCP Server"]):::systemNodeStyle
+        DataAgent["Data Analysis Agent<br/>(LangGraph)"]:::agentStyle
+        
+        subgraph "Agent Components"
+            direction LR
+            Workflow["LangGraph Workflow"]:::workflowStyle
+            Memory["Vector Memory<br/>(Schema & Context)"]:::memoryStyle
+            Tools["BigQuery & Looker Tools"]:::toolStyle
         end
     end
 
-    subgraph External_Services_Group [External Services & Data]
+    %% Layer 5: External Services
+    subgraph "Layer 5: External Services & Data"
         direction TB
-        Gemini_Node{"Vertex AI Gemini"}:::externalNodeStyle
-        BigQuery_Node[("Google BigQuery")]:::externalNodeStyle
-        Looker_Node["Looker API"]:::externalNodeStyle
+        VertexAI["Vertex AI<br/>(Gemini Pro)"]:::aiStyle
+        BigQuery["Google BigQuery<br/>(Data Warehouse)"]:::dataStyle
+        Looker["Google Looker<br/>(BI Platform)"]:::biStyle
+        VectorSearch["Vertex AI Vector Search<br/>(Schema Repository)"]:::vectorStyle
     end
 
-    %% User Interaction
-    User -- "Step 1: Natural Language Request" --> WebApp_Node
+    %% Layer 6: Storage & Observability
+    subgraph "Layer 6: Storage & Observability"
+        direction LR
+        Firestore["Google Firestore<br/>(Session State)"]:::storageStyle
+        CloudLogging["Cloud Logging"]:::observabilityStyle
+        LangSmith["LangSmith<br/>(AI Tracing)"]:::observabilityStyle
+        SecretManager["Secret Manager"]:::securityStyle
+    end
 
-    %% System Internal Flow
-    WebApp_Node -- "Step 2: Forward Request" --> ADK_Core_Node
-    ADK_Core_Node -- "Step 3: Dispatch Task" --> BQL_Agent
+    %% Connections
+    NextJS & SlackBot & Mobile --> Auth
+    Auth --> APIGateway
+    APIGateway --> FastAPI
+    FastAPI --> PubSub
+    PubSub --> DataAgent
+    
+    DataAgent --> Workflow
+    DataAgent --> Memory
+    DataAgent --> Tools
+    
+    Workflow --> VertexAI
+    Tools --> BigQuery
+    Tools --> Looker
+    Memory --> VectorSearch
+    
+    DataAgent --> Firestore
+    DataAgent --> CloudLogging
+    DataAgent --> LangSmith
+    Tools --> SecretManager
 
-    %% Agent to MCP for LLM
-    BQL_Agent -- "Step 4: Understand & Plan (Request)" --> MCP_Server_BQL
-    MCP_Server_BQL -- "Step 5: Call LLM (Request)" --> Gemini_Node
-    Gemini_Node -- "Suggestions:<br>SQL Draft,<br>Looker Config (Response)" --> MCP_Server_BQL
-    MCP_Server_BQL -- "LLM Result (Response)" --> BQL_Agent
-
-    %% Agent to MCP for BigQuery
-    BQL_Agent -- "Step 6: Generate SQL (Request)" --> MCP_Server_BQL
-    MCP_Server_BQL -- "Step 7: Execute Query (Request)" --> BigQuery_Node
-    BigQuery_Node -- "Step 8: Query Result (Response)" --> MCP_Server_BQL
-    MCP_Server_BQL -- "Step 9: BQ Result (Response)" --> BQL_Agent
-
-    %% Agent to MCP for Looker
-    BQL_Agent -- "Step 10: Generate Looker Config (Request)" --> MCP_Server_BQL
-    MCP_Server_BQL -- "Step 11: Call Looker API (Request)" --> Looker_Node
-    Looker_Node -- "Step 12: Chart Link or Embed Code (Response)" --> MCP_Server_BQL
-    MCP_Server_BQL -- "Looker Result (Response)" --> BQL_Agent
-
-    %% Finalizing and Displaying Result
-    BQL_Agent -- "Step 14: Aggregate Response" --> ADK_Core_Node
-    ADK_Core_Node -- "Step 15: Push Result" --> WebApp_Node
-    WebApp_Node -- "Step 16: Display Result" --> User
-
-    %% Style Definitions
-    classDef actorStyle fill:#f9f,stroke:#333,stroke-width:2px,color:black
-    classDef systemNodeStyle fill:#e6f2ff,stroke:#a4c9ff,color:black
-    classDef agentNodeStyle fill:#e0f2f1,stroke:#4db6ac,color:black
-    classDef externalNodeStyle fill:#d5f5e3,stroke:#58d68d,color:black
-    classDef subgraphStyle fill:#fafafa,stroke:#d3d3d3,stroke-width:1.5px,color:#333,font-weight:bold
-    class Core_System_Flow,Agent_Interaction_Loop,External_Services_Group subgraphStyle
+    %% Styles
+    classDef frontendStyle fill:#e3f2fd,stroke:#1976d2,color:#000
+    classDef gatewayStyle fill:#f3e5f5,stroke:#7b1fa2,color:#000
+    classDef authStyle fill:#e8f5e8,stroke:#388e3c,color:#000
+    classDef apiStyle fill:#fff3e0,stroke:#f57c00,color:#000
+    classDef queueStyle fill:#fce4ec,stroke:#c2185b,color:#000
+    classDef agentStyle fill:#e0f2f1,stroke:#00695c,color:#000
+    classDef workflowStyle fill:#f1f8e9,stroke:#558b2f,color:#000
+    classDef memoryStyle fill:#e8eaf6,stroke:#3f51b5,color:#000
+    classDef toolStyle fill:#fff8e1,stroke:#ff8f00,color:#000
+    classDef aiStyle fill:#e1f5fe,stroke:#0277bd,color:#000
+    classDef dataStyle fill:#e8f5e8,stroke:#2e7d32,color:#000
+    classDef biStyle fill:#fce4ec,stroke:#ad1457,color:#000
+    classDef vectorStyle fill:#f3e5f5,stroke:#6a1b9a,color:#000
+    classDef storageStyle fill:#fff3e0,stroke:#ef6c00,color:#000
+    classDef observabilityStyle fill:#e0f2f1,stroke:#00796b,color:#000
+    classDef securityStyle fill:#ffebee,stroke:#c62828,color:#000
 ```
 
-### 4.4 技术流程拆解
+### 3.2 详细交互流程
 
-1.  **用户输入**：用户通过 Web 应用的聊天界面输入自然语言请求。
-2.  **请求路由**：Web 应用将认证后的用户请求安全地发送到 ADK 核心服务。
-3.  **Agent 激活/路由**：ADK 根据请求类型或元数据（如识别到与数据分析相关的意图），激活或将任务路由到 BigQuery x Looker Agent 的某个实例。
-4.  **意图理解与规划**：Agent 通过 MCP 服务器调用 Vertex AI Gemini Pro 模型。Gemini 负责解析用户的自然语言意图，识别关键实体（如指标、维度、时间范围、图表类型），并规划执行步骤（例如：先查询哪些表，如何聚合，生成何种图表）。Gemini 可能会生成初步的 SQL 查询草稿和 Looker 图表配置建议。
-5.  **BigQuery 查询生成与执行**：
-    - Agent 根据 Gemini 的输出和预定义的业务逻辑（如数据表 Schema、字段含义等），完善并最终确定 SQL 查询语句。
-    - Agent 通过 MCP（调用封装了 BigQuery Java/Python SDK 的工具）将 SQL 发送到 BigQuery 执行。
-6.  **数据获取与处理**：BigQuery 执行查询并将结果集通过 MCP 返回给 Agent。Agent 可能需要对结果进行初步的验证、转换或格式化，为生成 Looker 图表做准备。
-7.  **Looker 可视化生成/更新**：
-    - Agent 根据查询结果和用户需求（或 Gemini 的建议），通过 MCP（调用封装了 Looker SDK 或 REST API 的工具）构造创建或更新 Looker 图表（如 Dashboard Element、Look）所需的参数和 API 请求。
-    - MCP 调用 Looker API，在 Looker 实例中生成或更新相应的图表。
-8.  **结果呈现**：Looker API 返回新图表的访问链接、嵌入式 HTML 代码或操作状态。Agent 将这些信息以及可能的文字总结，通过 ADK 和 Web 应用呈现给用户。用户可以直接在 Web 应用中看到嵌入的 Looker 图表，或点击链接跳转到 Looker 平台进行更深入的交互。
-9.  **持续交互与迭代**：用户可以基于当前结果继续提问，例如“将时间范围改为上个季度”或“添加产品类别作为筛选条件”。Agent 将重复步骤 4-8，对查询和图表进行迭代修改和更新。
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant WebApp as Next.js Web App
+    participant Gateway as API Gateway
+    participant FastAPI as FastAPI Service
+    participant PubSub as Cloud Pub/Sub
+    participant Agent as Data Analysis Agent
+    participant Gemini as Vertex AI Gemini
+    participant BQ as BigQuery
+    participant Looker as Looker API
+    participant Memory as Vector Memory
+
+    User->>WebApp: 输入自然语言查询
+    WebApp->>Gateway: 发送认证请求 (JWT)
+    Gateway->>FastAPI: 转发验证后的请求
+    
+    FastAPI->>PubSub: 发布异步任务
+    FastAPI->>User: 返回任务ID
+    
+    PubSub->>Agent: 触发Agent处理
+    
+    Note over Agent: LangGraph 工作流开始
+    
+    Agent->>Memory: 检索相关Schema和上下文
+    Memory->>Agent: 返回相关信息
+    
+    Agent->>Gemini: 意图理解和查询规划
+    Gemini->>Agent: 返回SQL草稿和可视化建议
+    
+    Agent->>BQ: 执行优化后的SQL查询
+    BQ->>Agent: 返回查询结果
+    
+    Agent->>Looker: 创建/更新可视化图表
+    Looker->>Agent: 返回图表链接和嵌入代码
+    
+    Agent->>WebApp: 推送最终结果 (WebSocket)
+    WebApp->>User: 展示分析结果和图表
+```
+
+## 4. 技术实现详解
+
+### 4.1 LangGraph 工作流设计
+
+```python
+# services/worker/app/workflows/data_analysis_workflow.py
+from langgraph import StateGraph, END
+from typing import TypedDict, List
+from pydantic import BaseModel
+
+class AnalysisState(TypedDict):
+    user_query: str
+    intent: dict
+    sql_query: str
+    query_results: List[dict]
+    visualization_config: dict
+    final_response: dict
+    error: str
+
+def create_data_analysis_workflow():
+    workflow = StateGraph(AnalysisState)
+    
+    # 定义节点
+    workflow.add_node("understand_intent", understand_user_intent)
+    workflow.add_node("retrieve_schema", retrieve_relevant_schema)
+    workflow.add_node("generate_sql", generate_sql_query)
+    workflow.add_node("execute_query", execute_bigquery)
+    workflow.add_node("create_visualization", create_looker_visualization)
+    workflow.add_node("format_response", format_final_response)
+    
+    # 定义边和条件
+    workflow.add_edge("understand_intent", "retrieve_schema")
+    workflow.add_edge("retrieve_schema", "generate_sql")
+    workflow.add_edge("generate_sql", "execute_query")
+    workflow.add_edge("execute_query", "create_visualization")
+    workflow.add_edge("create_visualization", "format_response")
+    workflow.add_edge("format_response", END)
+    
+    # 设置入口点
+    workflow.set_entry_point("understand_intent")
+    
+    return workflow.compile()
+```
+
+### 4.2 Agent 工具实现
+
+#### BigQuery 工具
+
+```python
+# services/worker/app/tools/bigquery/client.py
+from google.cloud import bigquery
+from langchain.tools import BaseTool
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
+
+class BigQueryTool(BaseTool):
+    name = "bigquery_executor"
+    description = "执行BigQuery SQL查询并返回结果"
+    
+    def __init__(self):
+        super().__init__()
+        self.client = bigquery.Client()
+    
+    def _run(self, sql_query: str, **kwargs) -> Dict:
+        try:
+            query_job = self.client.query(sql_query)
+            results = query_job.result()
+            
+            # 转换为字典格式
+            rows = [dict(row) for row in results]
+            
+            return {
+                "success": True,
+                "data": rows,
+                "row_count": len(rows),
+                "schema": [field.name for field in results.schema]
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "data": []
+            }
+```
+
+#### Looker 工具
+
+```python
+# services/worker/app/tools/looker/client.py
+import looker_sdk
+from langchain.tools import BaseTool
+from typing import Dict, Any
+
+class LookerTool(BaseTool):
+    name = "looker_visualizer"
+    description = "创建和管理Looker可视化图表"
+    
+    def __init__(self):
+        super().__init__()
+        self.sdk = looker_sdk.init40()
+    
+    def _run(self, visualization_config: Dict[str, Any]) -> Dict:
+        try:
+            # 创建Look或Dashboard
+            if visualization_config["type"] == "look":
+                look = self.create_look(visualization_config)
+                return {
+                    "success": True,
+                    "look_id": look.id,
+                    "url": f"https://your-looker-instance.com/looks/{look.id}",
+                    "embed_url": f"https://your-looker-instance.com/embed/looks/{look.id}"
+                }
+            elif visualization_config["type"] == "dashboard":
+                dashboard = self.create_dashboard(visualization_config)
+                return {
+                    "success": True,
+                    "dashboard_id": dashboard.id,
+                    "url": f"https://your-looker-instance.com/dashboards/{dashboard.id}"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+```
+
+### 4.3 记忆管理
+
+```python
+# services/worker/app/memory/vector_memory.py
+from langchain.vectorstores import VertexAIVectorSearch
+from langchain.embeddings import VertexAIEmbeddings
+from typing import List, Dict
+
+class SchemaVectorMemory:
+    def __init__(self):
+        self.embeddings = VertexAIEmbeddings()
+        self.vector_store = VertexAIVectorSearch(
+            project_id="your-project-id",
+            location="us-central1",
+            index_id="schema-index",
+            embedding=self.embeddings
+        )
+    
+    def retrieve_relevant_schemas(self, query: str, k: int = 5) -> List[Dict]:
+        """根据用户查询检索相关的数据库Schema"""
+        docs = self.vector_store.similarity_search(query, k=k)
+        return [{
+            "table_name": doc.metadata["table_name"],
+            "schema": doc.metadata["schema"],
+            "description": doc.page_content,
+            "sample_queries": doc.metadata.get("sample_queries", [])
+        } for doc in docs]
+```
+
+## 5. 部署配置
+
+### 5.1 Docker 配置
+
+```dockerfile
+# infrastructure/docker/worker/Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件
+COPY services/worker/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制应用代码
+COPY services/worker/app ./app
+COPY shared ./shared
+
+# 设置环境变量
+ENV PYTHONPATH=/app
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health')"
+
+EXPOSE 8080
+
+CMD ["python", "-m", "app.main"]
+```
+
+### 5.2 Cloud Run 部署配置
+
+```yaml
+# infrastructure/terraform/modules/cloud-run-worker/main.tf
+resource "google_cloud_run_service" "data_analysis_worker" {
+  name     = "data-analysis-worker"
+  location = var.region
+
+  template {
+    spec {
+      containers {
+        image = var.worker_image
+        
+        env {
+          name  = "GOOGLE_CLOUD_PROJECT"
+          value = var.project_id
+        }
+        
+        env {
+          name = "BIGQUERY_DATASET"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.bigquery_config.secret_id
+              key  = "dataset"
+            }
+          }
+        }
+        
+        env {
+          name = "LOOKER_API_URL"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.looker_config.secret_id
+              key  = "api_url"
+            }
+          }
+        }
+        
+        resources {
+          limits = {
+            cpu    = "2"
+            memory = "4Gi"
+          }
+        }
+      }
+      
+      service_account_name = google_service_account.worker_sa.email
+    }
+    
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = "10"
+        "autoscaling.knative.dev/minScale" = "1"
+      }
+    }
+  }
+
+  traffic {
+    percent         = 100
+    latest_revision = true
+  }
+}
+```
+
+## 6. 监控和可观测性
+
+### 6.1 LangSmith 集成
+
+```python
+# services/worker/app/utils/langsmith_utils.py
+import os
+from langsmith import Client
+from langchain.callbacks import LangChainTracer
+
+def setup_langsmith_tracing():
+    """配置LangSmith追踪"""
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_PROJECT"] = "thrasio-iq-data-analysis"
+    
+    return LangChainTracer(
+        project_name="thrasio-iq-data-analysis",
+        client=Client()
+    )
+```
+
+### 6.2 结构化日志
+
+```python
+# services/worker/app/core/logging.py
+import json
+import logging
+from datetime import datetime
+from typing import Dict, Any
+
+class StructuredLogger:
+    def __init__(self, name: str):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.INFO)
+        
+        handler = logging.StreamHandler()
+        handler.setFormatter(self.JsonFormatter())
+        self.logger.addHandler(handler)
+    
+    class JsonFormatter(logging.Formatter):
+        def format(self, record):
+            log_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "level": record.levelname,
+                "message": record.getMessage(),
+                "module": record.module,
+                "function": record.funcName,
+                "line": record.lineno
+            }
+            
+            if hasattr(record, "extra_data"):
+                log_entry.update(record.extra_data)
+                
+            return json.dumps(log_entry)
+    
+    def info(self, message: str, **kwargs):
+        extra = {"extra_data": kwargs} if kwargs else {}
+        self.logger.info(message, extra=extra)
+    
+    def error(self, message: str, **kwargs):
+        extra = {"extra_data": kwargs} if kwargs else {}
+        self.logger.error(message, extra=extra)
+```
+
+## 7. 测试策略
+
+### 7.1 单元测试
+
+```python
+# services/worker/tests/unit/test_bigquery_tool.py
+import pytest
+from unittest.mock import Mock, patch
+from app.tools.bigquery.client import BigQueryTool
+
+class TestBigQueryTool:
+    @pytest.fixture
+    def bigquery_tool(self):
+        return BigQueryTool()
+    
+    @patch('google.cloud.bigquery.Client')
+    def test_successful_query(self, mock_client, bigquery_tool):
+        # 模拟成功的查询
+        mock_job = Mock()
+        mock_result = Mock()
+        mock_result.schema = [Mock(name='column1'), Mock(name='column2')]
+        mock_result.__iter__ = Mock(return_value=iter([
+            {'column1': 'value1', 'column2': 'value2'}
+        ]))
+        
+        mock_job.result.return_value = mock_result
+        mock_client.return_value.query.return_value = mock_job
+        
+        result = bigquery_tool._run("SELECT * FROM test_table")
+        
+        assert result["success"] is True
+        assert len(result["data"]) == 1
+        assert result["schema"] == ['column1', 'column2']
+```
+
+### 7.2 集成测试
+
+```python
+# services/worker/tests/integration/test_data_analysis_workflow.py
+import pytest
+from app.workflows.data_analysis_workflow import create_data_analysis_workflow
+
+class TestDataAnalysisWorkflow:
+    @pytest.fixture
+    def workflow(self):
+        return create_data_analysis_workflow()
+    
+    @pytest.mark.asyncio
+    async def test_complete_workflow(self, workflow):
+        initial_state = {
+            "user_query": "Show me sales by region for last month",
+            "intent": {},
+            "sql_query": "",
+            "query_results": [],
+            "visualization_config": {},
+            "final_response": {},
+            "error": ""
+        }
+        
+        result = await workflow.ainvoke(initial_state)
+        
+        assert result["error"] == ""
+        assert result["final_response"] is not None
+        assert "visualization" in result["final_response"]
+```
+
+## 8. 性能优化
+
+### 8.1 查询优化
+
+- **查询缓存**：使用 Redis 缓存常用查询结果
+- **分区表**：利用 BigQuery 分区表提高查询性能
+- **物化视图**：为复杂查询创建物化视图
+- **查询优化器**：使用 LLM 优化生成的 SQL 查询
+
+### 8.2 并发处理
+
+- **异步处理**：使用 asyncio 处理并发请求
+- **连接池**：维护 BigQuery 和 Looker 的连接池
+- **批处理**：对相似查询进行批处理优化
+
+## 9. 安全考虑
+
+### 9.1 数据访问控制
+
+- **行级安全**：基于用户角色的数据访问控制
+- **列级加密**：敏感数据列级加密
+- **审计日志**：完整的数据访问审计日志
+
+### 9.2 API 安全
+
+- **JWT 验证**：所有 API 请求的 JWT 验证
+- **速率限制**：防止 API 滥用的速率限制
+- **输入验证**：严格的输入参数验证
+
+## 10. 扩展指南
+
+### 10.1 添加新数据源
+
+1. 在 `services/worker/app/tools/` 下创建新的数据源工具
+2. 实现相应的客户端和查询接口
+3. 更新 LangGraph 工作流以支持新数据源
+4. 添加相应的测试用例
+
+### 10.2 支持新的可视化类型
+
+1. 扩展 Looker 工具以支持新的图表类型
+2. 更新可视化配置模式
+3. 在前端添加新图表类型的渲染支持
+4. 更新用户文档和示例
+
+这个优化后的文档提供了完整的 Agent 开发指南，涵盖了从架构设计到具体实现的所有方面，并与项目的整体技术栈和目录结构保持一致。
+
+        
