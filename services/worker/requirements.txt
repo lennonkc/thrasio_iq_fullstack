@@ -1,0 +1,31 @@
+# Core dependencies
+fastapi==0.115.12
+uvicorn==0.34.3
+pydantic==2.11.7
+pydantic-settings==2.10.0
+
+# AI and ML dependencies
+langgraph==0.4.8
+pydantic-ai==0.0.17
+llama-index==0.12.9
+langsmith==0.4.1
+
+# Google Cloud dependencies
+google-cloud-bigquery==3.34.0
+google-cloud-firestore==2.20.0
+google-cloud-pubsub==2.26.1
+google-cloud-secret-manager==2.21.1
+google-cloud-aiplatform==1.90.0
+google-cloud-storage==2.19.0
+
+# Data processing
+pandas==2.3.0
+numpy==2.3.1
+
+# HTTP client
+httpx==0.28.1
+requests==2.32.4
+
+# Utilities
+python-dotenv==1.0.1
+structlog==25.4.0
