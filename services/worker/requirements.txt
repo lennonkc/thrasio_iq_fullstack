@@ -6,7 +6,7 @@ pydantic-settings==2.10.0
 
 # AI and ML dependencies
 langgraph==0.4.8
-langchain==0.3.25
+langchain==0.3.26
 langchain-core==0.3.66
 pydantic-ai==0.0.17
 llama-index==0.12.9
@@ -23,8 +23,8 @@ google-cloud-storage==2.19.0
 # Data processing
 pandas==2.3.0
 numpy==2.3.1
-db-dtypes-1.4.3 
-pyarrow-20.0.0
+db-dtypes==1.4.3 
+pyarrow==20.0.0
 
 # HTTP client
 httpx==0.28.1

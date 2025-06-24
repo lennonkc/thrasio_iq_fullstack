@@ -6,14 +6,14 @@
 
 from .client import BigQueryClient
 from .dataset_explorer import BigQueryDatasetExplorer
-from .query_builder import BigQueryQueryBuilder
+from .query_builder import QueryBuilder
 from .query_executor import BigQueryQueryExecutor, create_query_executor
 from .schema_manager import SchemaManager
 
 __all__ = [
     "BigQueryClient",
     "BigQueryDatasetExplorer",
-    "BigQueryQueryBuilder",
+    "QueryBuilder",
     "BigQueryQueryExecutor",
     "create_query_executor",
     "SchemaManager",

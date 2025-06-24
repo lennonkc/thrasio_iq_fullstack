@@ -1,12 +1,12 @@
 """Schema management for BigQuery tables and datasets."""
 
-from typing import Any, Dict, List, Optional, Set
+import os
 import json
+from typing import List, Dict, Any, Optional, Set
 import structlog
 from dataclasses import dataclass
-from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
 from google.api_core.exceptions import GoogleAPIError
-
 from .client import BigQueryClient
 
 
@@ -113,7 +113,7 @@ class SchemaManager:
         self.logger = structlog.get_logger()
         self._schema_cache: Dict[str, TableSchema] = {}
     
-    async def get_table_schema(self, dataset_id: str, table_id: str, use_cache: bool = True) -> TableSchema:
+    def get_table_schema(self, dataset_id: str, table_id: str, use_cache: bool = True) -> TableSchema:
         """Get schema for a specific table.
         
         Args:
@@ -136,7 +136,7 @@ class SchemaManager:
         
         try:
             # Get table info from BigQuery
-            table_info = await self.client.get_table_info(dataset_id, table_id)
+            table_info = self.client.get_table_info(dataset_id, table_id)
             
             # Create TableSchema object
             schema = TableSchema(
@@ -172,7 +172,7 @@ class SchemaManager:
             )
             raise
     
-    async def get_dataset_schemas(self, dataset_id: str) -> List[TableSchema]:
+    def get_dataset_schemas(self, dataset_id: str) -> List[TableSchema]:
         """Get schemas for all tables in a dataset.
         
         Args:
@@ -183,13 +183,13 @@ class SchemaManager:
         """
         try:
             # Get list of tables in dataset
-            table_ids = await self.client.list_tables(dataset_id)
+            table_ids = self.client.list_tables(dataset_id)
             
             # Get schema for each table
             schemas = []
             for table_id in table_ids:
                 try:
-                    schema = await self.get_table_schema(dataset_id, table_id)
+                    schema = self.get_table_schema(dataset_id, table_id)
                     schemas.append(schema)
                 except GoogleAPIError as e:
                     self.logger.warning(
@@ -198,13 +198,6 @@ class SchemaManager:
                         dataset=dataset_id,
                         table=table_id
                     )
-                    continue
-            
-            self.logger.info(
-                "Retrieved dataset schemas",
-                dataset=dataset_id,
-                table_count=len(schemas)
-            )
             
             return schemas
             
@@ -214,169 +207,32 @@ class SchemaManager:
                 error=str(e),
                 dataset=dataset_id
             )
-            raise
+            return []
     
-    async def search_tables_by_field(self, field_name: str, datasets: Optional[List[str]] = None) -> List[TableSchema]:
-        """Search for tables containing a specific field.
-        
-        Args:
-            field_name: Name of the field to search for
-            datasets: Optional list of datasets to search in (searches all if None)
-            
-        Returns:
-            List of TableSchema objects containing the field
-        """
-        matching_tables = []
-        
-        try:
-            # Get datasets to search
-            if datasets is None:
-                datasets = await self.client.list_datasets()
-            
-            # Search each dataset
-            for dataset_id in datasets:
-                try:
-                    schemas = await self.get_dataset_schemas(dataset_id)
-                    
-                    # Check each table for the field
-                    for schema in schemas:
-                        if field_name.lower() in [f["name"].lower() for f in schema.fields]:
-                            matching_tables.append(schema)
-                            
-                except GoogleAPIError as e:
-                    self.logger.warning(
-                        "Failed to search dataset",
-                        error=str(e),
-                        dataset=dataset_id
-                    )
-                    continue
-            
-            self.logger.info(
-                "Field search completed",
-                field_name=field_name,
-                matching_tables=len(matching_tables)
-            )
-            
-            return matching_tables
-            
-        except Exception as e:
-            self.logger.error(
-                "Field search failed",
-                error=str(e),
-                field_name=field_name
-            )
-            raise
-    
-    async def search_tables_by_description(self, keyword: str, datasets: Optional[List[str]] = None) -> List[TableSchema]:
-        """Search for tables by description keyword.
-        
-        Args:
-            keyword: Keyword to search for in table descriptions
-            datasets: Optional list of datasets to search in
-            
-        Returns:
-            List of TableSchema objects with matching descriptions
-        """
-        matching_tables = []
-        keyword_lower = keyword.lower()
-        
-        try:
-            # Get datasets to search
-            if datasets is None:
-                datasets = await self.client.list_datasets()
-            
-            # Search each dataset
-            for dataset_id in datasets:
-                try:
-                    schemas = await self.get_dataset_schemas(dataset_id)
-                    
-                    # Check each table description
-                    for schema in schemas:
-                        if (schema.description and 
-                            keyword_lower in schema.description.lower()):
-                            matching_tables.append(schema)
-                            
-                        # Also check field descriptions
-                        for field in schema.fields:
-                            if (field.get("description") and 
-                                keyword_lower in field["description"].lower()):
-                                if schema not in matching_tables:
-                                    matching_tables.append(schema)
-                                break
-                                
-                except GoogleAPIError as e:
-                    self.logger.warning(
-                        "Failed to search dataset",
-                        error=str(e),
-                        dataset=dataset_id
-                    )
-                    continue
-            
-            self.logger.info(
-                "Description search completed",
-                keyword=keyword,
-                matching_tables=len(matching_tables)
-            )
-            
-            return matching_tables
-            
-        except Exception as e:
-            self.logger.error(
-                "Description search failed",
-                error=str(e),
-                keyword=keyword
-            )
-            raise
-    
-    def get_schema_summary(self, schema: TableSchema) -> Dict[str, Any]:
-        """Get a summary of a table schema.
-        
-        Args:
-            schema: TableSchema object
-            
-        Returns:
-            Dictionary with schema summary
-        """
-        return {
-            "table": f"{schema.dataset_id}.{schema.table_id}",
-            "description": schema.description,
-            "total_fields": len(schema.fields),
-            "numeric_fields": len(schema.get_numeric_fields()),
-            "string_fields": len(schema.get_string_fields()),
-            "date_fields": len(schema.get_date_fields()),
-            "num_rows": schema.num_rows,
-            "size_mb": round(schema.num_bytes / (1024 * 1024), 2) if schema.num_bytes else None,
-            "created": schema.created,
-            "modified": schema.modified
-        }
-    
-    def clear_cache(self) -> None:
-        """Clear the schema cache."""
-        self._schema_cache.clear()
-        self.logger.info("Schema cache cleared")
-    
-    def export_schemas_to_json(self, schemas: List[TableSchema], file_path: str) -> None:
-        """Export schemas to JSON file.
+    def export_schemas_to_json(self, schemas: List[TableSchema], file_path: str):
+        """Export a list of schemas to a JSON file.
         
         Args:
             schemas: List of TableSchema objects
-            file_path: Path to output JSON file
+            file_path: Path to the output JSON file
         """
         try:
-            schema_data = [schema.to_dict() for schema in schemas]
+            # Convert schemas to dictionaries
+            schema_dicts = [schema.to_dict() for schema in schemas]
             
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(schema_data, f, indent=2, ensure_ascii=False)
-            
+            # Write to JSON file
+            with open(file_path, "w") as f:
+                json.dump(schema_dicts, f, indent=2)
+                
             self.logger.info(
-                "Schemas exported to JSON",
+                "Exported schemas to JSON",
                 file_path=file_path,
                 schema_count=len(schemas)
             )
             
-        except Exception as e:
+        except IOError as e:
             self.logger.error(
-                "Failed to export schemas",
+                "Failed to write schemas to JSON file",
                 error=str(e),
                 file_path=file_path
             )

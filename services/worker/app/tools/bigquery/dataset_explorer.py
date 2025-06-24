@@ -10,10 +10,10 @@ import os
 from typing import Dict, Any, List, Optional, Tuple, Type
 from datetime import datetime
 import structlog
-from google.cloud import bigquery
 from google.cloud.exceptions import NotFound, Forbidden, GoogleCloudError
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
+from .client import BigQueryClient
 
 
 class DatasetExplorerInput(BaseModel):
@@ -71,28 +71,18 @@ class BigQueryDatasetExplorer(BaseTool):
     )
     args_schema: Type[BaseModel] = DatasetExplorerInput
     
-    def __init__(self, project_id: Optional[str] = None, **kwargs):
+    def __init__(self, client: BigQueryClient, **kwargs):
         """
         初始化数据集探索工具
         
         Args:
-            project_id: Google Cloud项目ID，如果不提供则从环境变量获取
+            client: BigQueryClient实例
             **kwargs: 其他参数传递给BaseTool
         """
         super().__init__(**kwargs)
+        self.client = client
         self.logger = structlog.get_logger()
-        self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
-        
-        if not self.project_id:
-            raise ValueError("项目ID必须提供或设置GOOGLE_CLOUD_PROJECT环境变量")
-        
-        # 初始化BigQuery客户端
-        try:
-            self.client = bigquery.Client(project=self.project_id)
-            self.logger.info("BigQuery数据集探索工具初始化成功", project_id=self.project_id)
-        except Exception as e:
-            self.logger.error("BigQuery客户端初始化失败", error=str(e))
-            raise
+        self.logger.info("BigQuery数据集探索工具初始化成功")
     
     def _run(
         self, 
@@ -203,17 +193,7 @@ class BigQueryDatasetExplorer(BaseTool):
         Returns:
             数据集信息字典
         """
-        dataset_ref = self.client.dataset(dataset_id)
-        dataset = self.client.get_dataset(dataset_ref)
-        
-        return {
-            "dataset_id": dataset.dataset_id,
-            "project_id": dataset.project,
-            "location": dataset.location,
-            "created": dataset.created.isoformat() if dataset.created else None,
-            "modified": dataset.modified.isoformat() if dataset.modified else None,
-            "description": dataset.description
-        }
+        return self.client.get_dataset_info(dataset_id)
     
     def _list_tables(
         self, 
@@ -234,38 +214,18 @@ class BigQueryDatasetExplorer(BaseTool):
         Returns:
             表信息列表
         """
-        dataset_ref = self.client.dataset(dataset_id)
-        tables = list(self.client.list_tables(dataset_ref, max_results=max_tables))
+        table_ids = self.client.list_tables(dataset_id)
         
         result = []
-        for table in tables:
+        for table_id in table_ids[:max_tables]:
             # 应用表名过滤
-            if table_pattern and not self._match_pattern(table.table_id, table_pattern):
+            if table_pattern and not self._match_pattern(table_id, table_pattern):
                 continue
-                
-            table_info = {
-                "table_id": table.table_id,
-                "table_type": table.table_type,
-                "created": table.created.isoformat() if table.created else None,
-                "modified": table.modified.isoformat() if table.modified else None,
-                "num_rows": getattr(table, 'num_rows', None),
-                "num_bytes": getattr(table, 'num_bytes', None),
-                "description": getattr(table, 'description', None)
-            }
             
-            # 如果需要详细信息，获取表结构
-            if include_details:
-                try:
-                    table_info["schema_fields"] = self._get_table_schema(
-                        dataset_id, table.table_id
-                    )
-                except Exception as e:
-                    self.logger.warning(
-                        "获取表结构失败", 
-                        table_id=table.table_id, 
-                        error=str(e)
-                    )
-                    table_info["schema_fields"] = None
+            table_info = self.client.get_table_info(dataset_id, table_id)
+            
+            if not include_details:
+                table_info.pop("schema", None)
             
             result.append(table_info)
         
@@ -282,54 +242,32 @@ class BigQueryDatasetExplorer(BaseTool):
         Returns:
             表结构字段列表
         """
-        table_ref = self.client.dataset(dataset_id).table(table_id)
-        table = self.client.get_table(table_ref)
-        
-        schema_fields = []
-        for field in table.schema:
-            schema_fields.append({
-                "name": field.name,
-                "field_type": field.field_type,
-                "mode": field.mode,
-                "description": field.description
-            })
-        
-        return schema_fields
+        return self.client.get_table_schema(dataset_id, table_id)
     
-    def _match_pattern(self, table_name: str, pattern: str) -> bool:
-        """
-        简单的通配符匹配
-        
-        Args:
-            table_name: 表名
-            pattern: 匹配模式（支持*通配符）
-            
-        Returns:
-            是否匹配
-        """
-        import fnmatch
-        return fnmatch.fnmatch(table_name.lower(), pattern.lower())
+
     
     async def _arun(self, *args, **kwargs):
         """异步运行方法（暂不支持）"""
         raise NotImplementedError("BigQueryDatasetExplorer不支持异步运行")
 
 
-def create_dataset_explorer_tool(project_id: Optional[str] = None) -> BigQueryDatasetExplorer:
+def create_dataset_explorer_tool(client: BigQueryClient) -> BigQueryDatasetExplorer:
     """
     创建数据集探索工具实例
     
     这是一个工厂函数，用于在LangGraph工作流中创建工具实例。
     
     Args:
-        project_id: Google Cloud项目ID
+        client: BigQueryClient实例
         
     Returns:
         配置好的数据集探索工具实例
         
     Example:
         >>> # 在LangGraph工作流中使用
-        >>> explorer = create_dataset_explorer_tool("my-project")
+        >>> from .client import BigQueryClient
+        >>> client = BigQueryClient(project_id="my-project")
+        >>> explorer = create_dataset_explorer_tool(client)
         >>> result = explorer.run({
         ...     "dataset_id": "my_dataset",
         ...     "include_table_details": True,
@@ -337,13 +275,13 @@ def create_dataset_explorer_tool(project_id: Optional[str] = None) -> BigQueryDa
         ...     "max_tables": 50
         ... })
     """
-    return BigQueryDatasetExplorer(project_id=project_id)
+    return BigQueryDatasetExplorer(client=client)
 
 
 # 为了向后兼容，提供一个简化的函数接口
 def explore_dataset(
     dataset_id: str,
-    project_id: Optional[str] = None,
+    client: BigQueryClient,
     include_table_details: bool = False,
     table_pattern: Optional[str] = None,
     max_tables: int = 100
@@ -353,7 +291,7 @@ def explore_dataset(
     
     Args:
         dataset_id: 数据集ID
-        project_id: 项目ID（可选）
+        client: BigQueryClient实例
         include_table_details: 是否包含表详细信息
         table_pattern: 表名过滤模式
         max_tables: 最大表数量
@@ -362,15 +300,18 @@ def explore_dataset(
         探索结果字典
         
     Example:
+        >>> from .client import BigQueryClient
+        >>> client = BigQueryClient(project_id="my-project")
         >>> result = explore_dataset(
         ...     "dbt_kc_ai_test",
+        ...     client=client,
         ...     include_table_details=True,
         ...     table_pattern="user_*"
         ... )
         >>> if result["success"]:
         ...     print(f"找到 {len(result['tables'])} 个表")
     """
-    explorer = create_dataset_explorer_tool(project_id)
+    explorer = create_dataset_explorer_tool(client)
     return explorer._run(
         dataset_id=dataset_id,
         include_table_details=include_table_details,

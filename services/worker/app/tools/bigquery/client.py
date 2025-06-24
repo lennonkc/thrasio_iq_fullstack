@@ -37,7 +37,7 @@ class BigQueryClient:
             
         self.logger.info("BigQuery client initialized", project_id=self.project_id)
     
-    async def execute_query(
+    def execute_query(
         self, 
         query: str, 
         params: Optional[Dict[str, Any]] = None,
@@ -115,8 +115,45 @@ class BigQueryClient:
                 query_length=len(query)
             )
             raise
+
+    def get_dataset_info(self, dataset_id: str) -> Dict[str, Any]:
+        """Get detailed information about a dataset.
+        
+        Args:
+            dataset_id: BigQuery dataset ID
+            
+        Returns:
+            Dictionary with dataset metadata
+        """
+        try:
+            dataset_ref = self.client.dataset(dataset_id)
+            dataset = self.client.get_dataset(dataset_ref)
+            
+            dataset_info = {
+                "dataset_id": dataset.dataset_id,
+                "project_id": dataset.project,
+                "location": dataset.location,
+                "description": dataset.description,
+                "created": dataset.created.isoformat() if dataset.created else None,
+                "modified": dataset.modified.isoformat() if dataset.modified else None,
+            }
+            
+            self.logger.info(
+                "Retrieved dataset info",
+                dataset=dataset_id
+            )
+            
+            return dataset_info
+            
+        except GoogleAPIError as e:
+            self.logger.error(
+                "Failed to get dataset info",
+                error=str(e),
+                dataset=dataset_id
+            )
+            raise
     
-    async def get_table_schema(self, dataset_id: str, table_id: str) -> List[Dict[str, Any]]:
+    def get_table_schema(self, dataset_id: str, table_id: str) -> List[Dict[str, Any]]:
         """Get schema for a BigQuery table.
         
         Args:
@@ -137,7 +174,7 @@ class BigQueryClient:
             for field in table.schema:
                 field_info = {
                     "name": field.name,
-                    "type": field.field_type,
+                    "field_type": field.field_type,
                     "mode": field.mode,
                     "description": field.description
                 }
@@ -161,7 +198,7 @@ class BigQueryClient:
             )
             raise
     
-    async def list_datasets(self) -> List[str]:
+    def list_datasets(self) -> List[str]:
         """List all datasets in the project.
         
         Returns:
@@ -178,7 +215,7 @@ class BigQueryClient:
             self.logger.error("Failed to list datasets", error=str(e))
             raise
     
-    async def list_tables(self, dataset_id: str) -> List[str]:
+    def list_tables(self, dataset_id: str) -> List[str]:
         """List all tables in a dataset.
         
         Args:
@@ -207,7 +244,7 @@ class BigQueryClient:
             )
             raise
     
-    async def get_table_info(self, dataset_id: str, table_id: str) -> Dict[str, Any]:
+    def get_table_info(self, dataset_id: str, table_id: str) -> Dict[str, Any]:
         """Get detailed information about a table.
         
         Args:
@@ -233,7 +270,7 @@ class BigQueryClient:
                 "num_bytes": table.num_bytes,
                 "schema": [{
                     "name": field.name,
-                    "type": field.field_type,
+                    "field_type": field.field_type,
                     "mode": field.mode,
                     "description": field.description
                 } for field in table.schema]

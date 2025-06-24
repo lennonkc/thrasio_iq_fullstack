@@ -29,14 +29,6 @@ class QueryBuilder:
     
     def __init__(self):
         """Initialize query builder."""
-        self.reset()
-    
-    def reset(self) -> 'QueryBuilder':
-        """Reset the query builder to initial state.
-        
-        Returns:
-            Self for method chaining
-        """
         self._select_fields: List[str] = []
         self._from_table: Optional[str] = None
         self._joins: List[str] = []
@@ -46,6 +38,14 @@ class QueryBuilder:
         self._order_by_fields: List[str] = []
         self._limit_value: Optional[int] = None
         self._with_clauses: List[str] = []
+    
+    def reset(self) -> 'QueryBuilder':
+        """Reset the query builder to initial state.
+        
+        Returns:
+            Self for method chaining
+        """
+        self.__init__()
         return self
     
     def select(self, *fields: str) -> 'QueryBuilder':
@@ -58,10 +58,9 @@ class QueryBuilder:
             Self for method chaining
         """
         for field in fields:
-            if self._is_safe_identifier(field):
-                self._select_fields.append(field)
-            else:
+            if not self._is_safe_identifier(field):
                 raise ValueError(f"Unsafe field identifier: {field}")
+            self._select_fields.append(field)
         return self
     
     def select_all(self) -> 'QueryBuilder':
@@ -216,10 +215,9 @@ class QueryBuilder:
             Self for method chaining
         """
         for field in fields:
-            if self._is_safe_identifier(field):
-                self._group_by_fields.append(field)
-            else:
+            if not self._is_safe_identifier(field):
                 raise ValueError(f"Unsafe field identifier: {field}")
+            self._group_by_fields.append(field)
         return self
     
     def having(self, condition: str) -> 'QueryBuilder':

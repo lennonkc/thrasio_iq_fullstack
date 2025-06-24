@@ -8,10 +8,10 @@ import os
 from typing import Dict, Any, List, Optional, Union, Annotated, Type
 import pandas as pd
 import structlog
-from google.cloud import bigquery
 from google.cloud.exceptions import NotFound, Forbidden, GoogleCloudError
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field, ConfigDict
+from .client import BigQueryClient
 
 
 class QueryExecutorInput(BaseModel):
@@ -66,33 +66,20 @@ class BigQueryQueryExecutor(BaseTool):
 
     # 明确定义logger字段
     logger: Any = Field(default=None, exclude=True)
-    project_id: Optional[str] = Field(default=None, exclude=True)
-    client: Any = Field(default=None, exclude=True)
+    client: BigQueryClient = Field(default=None, exclude=True)
 
-    def __init__(self, project_id: Optional[str] = None, **kwargs):
+    def __init__(self, client: BigQueryClient, **kwargs):
         """
         初始化查询执行工具
 
         Args:
-            project_id: Google Cloud项目ID，如果不提供则从环境变量获取
+            client: BigQueryClient实例
             **kwargs: 其他参数传递给BaseTool
         """
         super().__init__(**kwargs)
+        self.client = client
         self.logger = structlog.get_logger()
-        self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
-
-        if not self.project_id:
-            raise ValueError("项目ID必须提供或设置GOOGLE_CLOUD_PROJECT环境变量")
-
-        # 初始化BigQuery客户端
-        try:
-            self.client = bigquery.Client(project=self.project_id)
-            self.logger.info(
-                "BigQuery查询执行工具初始化成功", project_id=self.project_id
-            )
-        except Exception as e:
-            self.logger.error("BigQuery客户端初始化失败", error=str(e))
-            raise
+        self.logger.info("BigQuery查询执行工具初始化成功")
 
     def _run(
         self,
@@ -129,58 +116,17 @@ class BigQueryQueryExecutor(BaseTool):
                 dry_run=dry_run,
             )
 
-            # 配置查询作业
-            job_config = bigquery.QueryJobConfig()
-            job_config.dry_run = dry_run
-
             # 执行查询
-            query_job = self.client.query(query, job_config=job_config, timeout=timeout)
-
-            # 如果是试运行，返回估算信息
-            if dry_run:
-                execution_time = time.time() - start_time
-                result = QueryResult(
-                    success=True,
-                    table_name=table_name,
-                    row_count=0,
-                    columns=[],
-                    data=[],
-                    bytes_processed=query_job.total_bytes_processed,
-                    execution_time=execution_time,
-                    error_message=None,
-                )
-
-                self.logger.info(
-                    "试运行完成",
-                    table_name=table_name,
-                    bytes_processed=query_job.total_bytes_processed,
-                    execution_time=execution_time,
-                )
-
-                return json.dumps(result.dict(), ensure_ascii=False, indent=2)
-
-            # 等待查询完成并获取结果
-            results = query_job.result(timeout=timeout)
-
-            # 转换为DataFrame并限制结果数量
-            df = results.to_dataframe()
-            
-            # 如果需要限制结果数量，在DataFrame级别进行截取
-            if max_results and len(df) > max_results:
-                df = df.head(max_results)
+            df = self.client.execute_query(
+                query,
+                timeout=timeout,
+                dry_run=dry_run,
+                max_results=max_results
+            )
 
             execution_time = time.time() - start_time
 
-            # 处理日期时间类型以确保JSON序列化兼容性
-            df_serializable = df.copy()
-            for col in df_serializable.columns:
-                if df_serializable[col].dtype == 'object':
-                    # 检查是否包含日期时间对象
-                    sample_val = df_serializable[col].dropna().iloc[0] if not df_serializable[col].dropna().empty else None
-                    if sample_val is not None and hasattr(sample_val, 'isoformat'):
-                        df_serializable[col] = df_serializable[col].astype(str)
-                elif 'datetime' in str(df_serializable[col].dtype) or 'date' in str(df_serializable[col].dtype):
-                    df_serializable[col] = df_serializable[col].astype(str)
+
 
             # 构建结果
             result = QueryResult(
@@ -188,8 +134,8 @@ class BigQueryQueryExecutor(BaseTool):
                 table_name=table_name,
                 row_count=len(df),
                 columns=df.columns.tolist(),
-                data=df_serializable.to_dict("records"),
-                bytes_processed=query_job.total_bytes_processed,
+                data=df.to_dict("records"),
+                bytes_processed=None, # client.execute_query不直接返回bytes_processed
                 execution_time=execution_time,
                 error_message=None,
             )
@@ -198,7 +144,6 @@ class BigQueryQueryExecutor(BaseTool):
                 "查询执行成功",
                 table_name=table_name,
                 row_count=len(df),
-                bytes_processed=query_job.total_bytes_processed,
                 execution_time=execution_time,
             )
 
@@ -267,50 +212,18 @@ class BigQueryQueryExecutor(BaseTool):
         # 对于BigQuery，我们使用同步方法，因为google-cloud-bigquery库主要是同步的
         return self._run(table_name, query, max_results, timeout, dry_run)
 
-    def validate_query(self, query: str, table_name: str) -> bool:
-        """
-        验证查询语句的基本安全性
 
-        Args:
-            query: SQL查询语句
-            table_name: 表名
-
-        Returns:
-            是否通过验证
-        """
-        # 基本的安全检查
-        dangerous_keywords = [
-            "DROP",
-            "DELETE",
-            "TRUNCATE",
-            "INSERT",
-            "UPDATE",
-            "CREATE",
-            "ALTER",
-            "GRANT",
-            "REVOKE",
-        ]
-
-        query_upper = query.upper()
-        for keyword in dangerous_keywords:
-            if keyword in query_upper:
-                self.logger.warning(
-                    "查询包含危险关键字", table_name=table_name, keyword=keyword
-                )
-                return False
-
-        return True
 
 
 # 创建工具实例的便捷函数
-def create_query_executor(project_id: Optional[str] = None) -> BigQueryQueryExecutor:
+def create_query_executor(client: BigQueryClient) -> BigQueryQueryExecutor:
     """
     创建BigQuery查询执行工具实例
 
     Args:
-        project_id: Google Cloud项目ID
+        client: BigQueryClient实例
 
     Returns:
         BigQueryQueryExecutor实例
     """
-    return BigQueryQueryExecutor(project_id=project_id)
+    return BigQueryQueryExecutor(client=client)
