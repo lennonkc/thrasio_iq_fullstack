@@ -335,7 +335,3 @@ mindmap
       NetSuite
       External SaaS (Zendesk, etc.)
 ```
-
----
-
-

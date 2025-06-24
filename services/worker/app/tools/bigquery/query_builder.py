@@ -171,7 +171,7 @@ class QueryBuilder:
         formatted_values = []
         for value in values:
             if isinstance(value, str):
-                formatted_values.append(f"'{value.replace(\"'\", \"''\")}'")
+                formatted_values.append(f"'{value.replace("'", "''")}'")  # Escape single quotes
             elif isinstance(value, (int, float)):
                 formatted_values.append(str(value))
             elif isinstance(value, bool):
@@ -179,7 +179,7 @@ class QueryBuilder:
             elif value is None:
                 formatted_values.append("NULL")
             else:
-                formatted_values.append(f"'{str(value).replace(\"'\", \"''\")}'")
+                formatted_values.append(f"'{str(value).replace("'", "''")}'")  # Escape single quotes
         
         condition = f"{field} IN ({', '.join(formatted_values)})"
         self._where_conditions.append(condition)
@@ -404,7 +404,7 @@ class QueryBuilder:
             Formatted SQL value
         """
         if isinstance(value, str):
-            return f"'{value.replace(\"'\", \"''\")}'"  # Escape single quotes
+            return f"'{value.replace("'", "''")}'"	# Escape single quotes
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, bool):
@@ -414,4 +414,8 @@ class QueryBuilder:
         elif value is None:
             return "NULL"
         else:
-            return f"'{str(value).replace(\"'\", \"''\")}'"  # Escape single quotes
+            return f"'{str(value).replace("'", "''")}'"	  # Escape single quotes
+
+
+# Alias for backward compatibility
+BigQueryQueryBuilder = QueryBuilder
