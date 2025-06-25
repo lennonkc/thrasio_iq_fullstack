@@ -1,5 +1,6 @@
 # Environments
 .venv/*
+services/worker/.venv
 .env
 .env.*
 !.env.example

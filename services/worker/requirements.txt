@@ -8,6 +8,7 @@ pydantic-settings==2.10.0
 langgraph==0.4.8
 langchain==0.3.26
 langchain-core==0.3.66
+langchain-google-vertexai==2.0.26
 pydantic-ai==0.0.17
 llama-index==0.12.9
 langsmith==0.4.1
