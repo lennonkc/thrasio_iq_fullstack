@@ -1,0 +1,12 @@
+{
+  "venvPath": "./services/worker",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "autoSearchPaths": true,
+  "extraPaths": [
+    "./services/worker/app",
+    "./shared"
+  ]
+}

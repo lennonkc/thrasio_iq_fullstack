@@ -12,7 +12,10 @@
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, TypedDict
+from typing import List, Dict, Any, TypedDict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from langgraph.graph.graph import CompiledGraph
 
 # Add the app directory to Python path
 app_dir = Path(__file__).parent.parent
@@ -40,7 +43,7 @@ class GraphState(TypedDict):
 class TestLangGraphAgent:
     """一个简单的测试代理"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = get_settings()
         # 使用BigQuery专用的项目ID
         self.bq_client = BigQueryClient(project_id=self.settings.google_cloud.bigquery_project_id)
@@ -86,14 +89,14 @@ class TestLangGraphAgent:
 
         try:
             response = self.llm_client.invoke(prompt)
-            mermaid_code = response.content
+            mermaid_code = str(response.content) if response.content else ""
             logger.info("成功生成Mermaid图表")
             return {**state, "mermaid_diagram": mermaid_code}
         except Exception as e:
             logger.error("生成Mermaid图表时出错", error=str(e))
             return {**state, "error": "Failed to generate Mermaid diagram."}
 
-    def build_graph(self):
+    def build_graph(self) -> "CompiledGraph":
         """构建LangGraph工作流"""
         workflow = StateGraph(GraphState)
 
@@ -106,7 +109,7 @@ class TestLangGraphAgent:
 
         return workflow.compile()
 
-def main():
+def main() -> None:
     """主执行函数"""
     # 确保已设置必要的环境变量（在.env文件中）
     # GCP_PROJECT_ID="thrasio-dev-ai-agent"  # 默认GCP项目

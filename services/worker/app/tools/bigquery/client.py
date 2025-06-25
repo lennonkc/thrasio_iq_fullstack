@@ -91,13 +91,10 @@ class BigQueryClient:
                 return pd.DataFrame()
             
             # Wait for query to complete and fetch results
-            results = query_job.result(timeout=timeout)
+            results = query_job.result(timeout=timeout, max_results=max_results)
             
             # Convert to DataFrame
-            if max_results:
-                df = results.to_dataframe(max_results=max_results)
-            else:
-                df = results.to_dataframe()
+            df = results.to_dataframe()
                 
             self.logger.info(
                 "Query executed successfully",
