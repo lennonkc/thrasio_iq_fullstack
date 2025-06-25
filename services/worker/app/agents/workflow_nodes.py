@@ -32,9 +32,9 @@ class WorkflowNodes:
             state["available_datasets"] = datasets
 
             # 生成欢迎信息
-            welcome_msg = "欢迎使用智能数据分析系统！\\n\\n可用的数据集：\\n"
+            welcome_msg = "Welcome to the Intelligent Data Analysis System!\n\nAvailable datasets:\n"
             for i, dataset in enumerate(datasets, 1):
-                welcome_msg += f"{i}. {dataset}\\n"
+                welcome_msg += f"{i}. {dataset}\n"
 
             print(welcome_msg)
             logger.info("欢迎节点执行完成", datasets_count=len(datasets))
@@ -59,22 +59,22 @@ class WorkflowNodes:
             # 命令行交互选择数据集
             while True:
                 try:
-                    choice = input("请选择数据集编号 (输入数字): ").strip()
+                    choice = input("Please select a dataset number (enter a number): ").strip()
                     dataset_index = int(choice) - 1
 
                     if 0 <= dataset_index < len(datasets):
                         selected_dataset = datasets[dataset_index]
                         state["selected_dataset"] = selected_dataset
-                        print(f"已选择数据集: {selected_dataset}")
+                        print(f"Selected dataset: {selected_dataset}")
                         logger.info("数据集选择完成", selected_dataset=selected_dataset)
                         break
                     else:
-                        print("无效的选择，请重新输入！")
+                        print("Invalid selection, please try again!")
 
                 except ValueError:
-                    print("请输入有效的数字！")
+                    print("Please enter a valid number!")
                 except KeyboardInterrupt:
-                    print("\\n用户取消操作")
+                    print("\nOperation cancelled by user")
                     state["error_message"] = "用户取消操作"
                     break
 
@@ -98,12 +98,12 @@ class WorkflowNodes:
             state["tables_in_dataset"] = tables
 
             # 显示表格信息
-            print(f"\\n数据集 '{dataset}' 中的表格：\\n")
+            print(f"\nTables in dataset '{dataset}':\n")
             if tables:
                 for i, table in enumerate(tables, 1):
                     print(f"{i}. {table}")
             else:
-                print("该数据集中没有表格")
+                print("No tables in this dataset")
                 state["error_message"] = (
                     f"数据集 '{dataset}' 中没有表格，请选择其他数据集"
                 )
@@ -126,25 +126,24 @@ class WorkflowNodes:
 
         if state.get("error_message"):
             return state
-
         try:
-            print("\\n请描述您想要进行的数据分析任务：")
-            print("(例如：分析销售趋势、查看用户行为模式、统计订单数量等)")
+            print("\nPlease describe the data analysis task you want to perform:")
+            print("(For example: analyze sales trends, view user behavior patterns, count order quantities, etc.)")
 
-            user_task = input("分析任务: ").strip()
+            user_task = input("Analysis task: ").strip()
 
             if not user_task:
-                print("任务描述不能为空，请重新输入！")
+                print("Task description cannot be empty, please try again!")
                 return state  # 重新获取用户输入
 
             state["user_task"] = user_task
             state["retry_count"] = 0  # 重置重试计数
 
-            print(f"已记录分析任务: {user_task}")
+            # print(f"Analysis task recorded: {user_task}")
             logger.info("用户任务获取完成", user_task=user_task)
 
         except KeyboardInterrupt:
-            print("\\n用户取消操作")
+            print("\nOperation cancelled by user")
             state["error_message"] = "用户取消操作"
         except Exception as e:
             logger.error("获取用户任务失败", error=str(e))
@@ -191,14 +190,14 @@ class WorkflowNodes:
                     state["filtered_task"] = filter_result.get(
                         "cleaned_task", user_task
                     )
-                    print("✓ 任务安全检查通过")
+                    print("✓ Task safety check passed")
                     logger.info(
                         "任务安全过滤通过",
                         filtered_task=filter_result.get("cleaned_task"),
                     )
                 else:
                     print(
-                        f"✗ 任务安全检查失败: {filter_result.get('reason', '未知原因')}"
+                        f"✗ Task safety check failed: {filter_result.get('reason', 'Unknown reason')}"
                     )
                     state["error_message"] = (
                         f"任务不安全: {filter_result.get('reason', '未知原因')}"
@@ -235,13 +234,13 @@ class WorkflowNodes:
 
             schemas = {}
 
-            print("正在读取表结构...")
+            print("Reading Table Schema...")
 
             for table in tables:
                 try:
                     schema = self.bq_client.get_table_schema(dataset, table)
                     schemas[table] = schema
-                    print(f"✓ 已读取表 {table} 的结构")
+                    print(f"✓ Successfully read {table} schema")
                 except Exception as e:
                     logger.warning("读取表结构失败", table=table, error=str(e))
                     schemas[table] = []

@@ -43,6 +43,17 @@ uv run mypy app/          # MyPy type checking
 pyright                   # Pyright type checking (if installed globally)
 ```
 
+### Logging Configuration
+The project uses structured logging with different modes:
+- **CLI Mode**: Quiet logging with text format (hides verbose third-party logs)  
+- **Service Mode**: JSON structured logging for production monitoring
+- **Debug Mode**: Detailed logging for development
+
+Key logging components:
+- `CLIQuietFilter`: Suppresses noisy logs from LangGraph, LangChain, etc.
+- Third-party logger levels automatically set to WARNING
+- CLI automatically configures quiet mode for better user experience
+
 ## Architecture
 
 ### Core Components

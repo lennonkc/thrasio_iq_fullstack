@@ -38,7 +38,9 @@ class GoogleCloudConfig(BaseSettings):
     )
 
     # BigQuery specific - uses separate project
-    bigquery_project_id: str = Field(default="thrasio-dev-data-wh-7ee095", env="GCP_BIGQUERY_PROJECT_ID")
+    bigquery_project_id: str = Field(
+        default="thrasio-dev-data-wh-7ee095", env="GCP_BIGQUERY_PROJECT_ID"
+    )
     bigquery_dataset: str = Field(default="analytics", env="GCP_BIGQUERY_DATASET")
     bigquery_location: str = Field(default="US", env="GCP_BIGQUERY_LOCATION")
     bigquery_timeout: int = Field(default=60, env="GCP_BIGQUERY_TIMEOUT")
@@ -94,7 +96,9 @@ class WorkerConfig(BaseSettings):
     )
 
     # Workflow settings
-    workflow_timeout: int = Field(default=600, env="WORKER_WORKFLOW_TIMEOUT")  # 10 minutes
+    workflow_timeout: int = Field(
+        default=600, env="WORKER_WORKFLOW_TIMEOUT"
+    )  # 10 minutes
     max_workflow_retries: int = Field(default=2, env="WORKER_MAX_WORKFLOW_RETRIES")
 
     class Config:

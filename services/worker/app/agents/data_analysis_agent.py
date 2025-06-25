@@ -215,16 +215,16 @@ class DataAnalysisAgent(BaseAgent, WorkflowNodes, WorkflowNodesPart2):
 
         if error_message:
             if "不安全" in error_message:
-                print("⚠️ 任务不安全，返回重新输入")
+                print("⚠️ Task is unsafe, returning for re-input")
                 return "retry"  # 重新获取用户任务
-            print("❌ 发生其他错误，转入错误处理")
+            print("❌ Other error occurred, entering error handling")
             return "error"
 
         if filtered_task:
-            print("✅ 过滤检查通过，继续下一步")
+            print("✅ Safety check passed, continuing to next step")
             return "continue"
         else:
-            print("⚠️ 过滤任务为空，重新输入")
+            print("⚠️ Filtered task is empty, please re-input")
             state["error_message"] = "过滤后的任务为空"
             return "retry"
 

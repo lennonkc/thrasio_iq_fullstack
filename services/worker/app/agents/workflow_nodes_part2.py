@@ -42,7 +42,7 @@ class WorkflowNodesPart2:
                 user_task=user_task, table_schemas=schema_info
             )
 
-            print("正在分析意图并生成查询...")
+            # print("正在分析意图并生成查询...")
             response = self.llm.invoke([HumanMessage(content=prompt)])
 
             try:
@@ -85,8 +85,8 @@ class WorkflowNodesPart2:
 
                 state["generated_queries"] = queries
 
-                print(f"✓ 已生成 {len(queries)} 个查询")
-                print(f"分析意图: {analysis_result.get('analysis_intent', '未提供')}")
+                # print(f"✓ 已生成 {len(queries)} 个查询")
+                # print(f"分析意图: {analysis_result.get('analysis_intent', '未提供')}")
 
                 logger.info(
                     "查询生成完成",
@@ -118,11 +118,11 @@ class WorkflowNodesPart2:
             queries = state["generated_queries"]
             test_results = []
 
-            print("正在测试查询...")
+            # print("正在测试查询...")
 
             for i, query in enumerate(queries, 1):
                 try:
-                    print(f"测试查询 {i}/{len(queries)}")
+                    # print(f"测试查询 {i}/{len(queries)}")
 
                     # 小规模测试 - 限制返回10条数据
                     test_query = self._add_limit_to_query(query, 10)
@@ -145,7 +145,7 @@ class WorkflowNodesPart2:
                     }
 
                     test_results.append(test_result)
-                    print(f"✓ 查询 {i} 测试成功 ({len(df)} 行)")
+                    # print(f"✓ 查询 {i} 测试成功 ({len(df)} 行)")
 
                 except Exception as e:
                     test_result = {
@@ -155,15 +155,15 @@ class WorkflowNodesPart2:
                         "error": str(e),
                     }
                     test_results.append(test_result)
-                    print(f"✗ 查询 {i} 测试失败: {str(e)}")
-                    logger.warning("查询测试失败", query_index=i, error=str(e))
+                    # print(f"✗ 查询 {i} 测试失败: {str(e)}")
+                    # logger.warning("查询测试失败", query_index=i, error=str(e))
 
             state["test_results"] = test_results
 
             # 检查是否有成功的查询
             successful_tests = [r for r in test_results if r["success"]]
             if successful_tests:
-                print(f"测试完成: {len(successful_tests)}/{len(queries)} 个查询成功")
+                # print(f"测试完成: {len(successful_tests)}/{len(queries)} 个查询成功")
                 logger.info(
                     "查询测试完成",
                     total_queries=len(queries),
@@ -300,15 +300,15 @@ class WorkflowNodesPart2:
                 user_task=user_task, query_results=results_summary
             )
 
-            print("正在生成分析报告...")
+            print("Generating analysis report...")
             response = self.llm.invoke([HumanMessage(content=prompt)])
 
             analysis_report = response.content
             state["analysis_report"] = analysis_report
 
             # 显示分析报告
-            print("\\n" + "=" * 60)
-            print("智能数据分析报告")
+            print("\n" + "=" * 60)
+            print("Intelligent Data Analysis Report")
             print("=" * 60)
             print(analysis_report)
             print("=" * 60)
@@ -328,7 +328,7 @@ class WorkflowNodesPart2:
 
         error_message = state.get("error_message", "未知错误")
 
-        print(f"\\n❌ 发生错误: {error_message}")
+        print(f"\n❌ 发生错误: {error_message}")
         print("分析工作流已终止")
 
         logger.error(
@@ -340,26 +340,26 @@ class WorkflowNodesPart2:
     # 辅助方法
     def _format_schema_info(self, table_schemas: Dict[str, List], dataset: str) -> str:
         """格式化表结构信息"""
-        schema_info = f"数据集: {dataset}\\n"
+        schema_info = f"数据集: {dataset}\n"
         schema_info += (
-            f"重要提醒: 在SQL查询中，表名必须使用完整格式 `{dataset}.table_name`\\n\\n"
+            f"重要提醒: 在SQL查询中，表名必须使用完整格式 `{dataset}.table_name`\n\n"
         )
 
         for table_name, schema in table_schemas.items():
-            schema_info += f"表名: {table_name}\\n"
-            schema_info += f"完整表名格式: {dataset}.{table_name}\\n"
+            schema_info += f"表名: {table_name}\n"
+            schema_info += f"完整表名格式: {dataset}.{table_name}\n"
             schema_info += (
-                f"SQL查询示例: SELECT * FROM `{dataset}.{table_name}` LIMIT 10\\n"
+                f"SQL查询示例: SELECT * FROM `{dataset}.{table_name}` LIMIT 10\n"
             )
-            schema_info += "字段:\\n"
+            schema_info += "字段:\n"
 
             for field in schema:
                 schema_info += f"  - {field['name']} ({field['field_type']})"
                 if field.get("description"):
                     schema_info += f": {field['description']}"
-                schema_info += "\\n"
+                schema_info += "\n"
 
-            schema_info += "\\n"
+            schema_info += "\n"
 
         return schema_info
 
@@ -375,25 +375,25 @@ class WorkflowNodesPart2:
         results_summary = ""
 
         for result in query_results:
-            results_summary += f"\\n查询 {result['query_index']}:\\n"
+            results_summary += f"\n查询 {result['query_index']}:\n"
             results_summary += (
-                f"行数: {result['row_count']}, 列数: {result['column_count']}\\n"
+                f"行数: {result['row_count']}, 列数: {result['column_count']}\n"
             )
-            results_summary += f"列名: {', '.join(result['columns'])}\\n"
+            results_summary += f"列名: {', '.join(result['columns'])}\n"
 
             if result.get("is_large_result"):
-                results_summary += f"结果概要: {result['summary']}\\n"
-                results_summary += "样本数据:\\n"
+                results_summary += f"结果概要: {result['summary']}\n"
+                results_summary += "样本数据:\n"
                 for row in result.get("sample_data", [])[:3]:
-                    results_summary += f"  {row}\\n"
+                    results_summary += f"  {row}\n"
             else:
-                results_summary += "数据:\\n"
+                results_summary += "数据:\n"
                 for row in result.get("data", [])[:5]:
-                    results_summary += f"  {row}\\n"
+                    results_summary += f"  {row}\n"
                 if len(result.get("data", [])) > 5:
-                    results_summary += f"  ... (共{len(result.get('data', []))}行)\\n"
+                    results_summary += f"  ... (共{len(result.get('data', []))}行)\n"
 
-            results_summary += "\\n"
+            results_summary += "\n"
 
         return results_summary
 

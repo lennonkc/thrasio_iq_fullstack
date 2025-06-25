@@ -160,6 +160,14 @@ class AppState(TypedDict):
   - 降级 `google-cloud-bigquery` 到3.27.0版本避免兼容性问题
 - **状态**: ✅ 已修复
 
+**问题5: 冗长的JSON格式日志干扰CLI体验**
+- **原因**: LangGraph、LangChain等库产生大量结构化日志输出
+- **解决方案**: 
+  - 创建 `CLIQuietFilter` 过滤器隐藏第三方库日志
+  - 在CLI中启用静默模式，只显示WARNING及以上级别
+  - 使用简洁的文本格式替代JSON格式
+- **状态**: ✅ 已修复
+
 ## 总结
 
 ✅ **任务完成状态**: 100%完成 + 问题修复
