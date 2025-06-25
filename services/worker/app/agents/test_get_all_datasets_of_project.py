@@ -12,7 +12,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, TypedDict
 
 if TYPE_CHECKING:
     from langgraph.graph.graph import CompiledGraph
@@ -22,19 +22,17 @@ app_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(app_dir))
 
 import structlog
-from langgraph.graph import StateGraph, END
-
-from langchain_google_vertexai import ChatVertexAI
-
 from core.config import get_settings
+from langchain_google_vertexai import ChatVertexAI
+from langgraph.graph import END, StateGraph
 from tools.bigquery.client import BigQueryClient
-
 
 logger = structlog.get_logger(__name__)
 
 
 class GraphState(TypedDict):
     """Graph state"""
+
     datasets: List[str]
     mermaid_diagram: str
     error: str | None
@@ -46,13 +44,15 @@ class TestLangGraphAgent:
     def __init__(self) -> None:
         self.settings = get_settings()
         # 使用BigQuery专用的项目ID
-        self.bq_client = BigQueryClient(project_id=self.settings.google_cloud.bigquery_project_id)
+        self.bq_client = BigQueryClient(
+            project_id=self.settings.google_cloud.bigquery_project_id
+        )
         # 初始化LLM客户端
         llm_options = self.settings.get_llm_client_options()
         self.llm_client = ChatVertexAI(
-            project=llm_options['project'],
-            location=llm_options['location'],
-            model_name="gemini-2.5-flash"
+            project=llm_options["project"],
+            location=llm_options["location"],
+            model_name="gemini-2.5-flash",
         )
 
     def list_datasets(self, state: GraphState) -> GraphState:
@@ -109,6 +109,7 @@ class TestLangGraphAgent:
 
         return workflow.compile()
 
+
 def main() -> None:
     """主执行函数"""
     # 确保已设置必要的环境变量（在.env文件中）
@@ -135,6 +136,7 @@ def main() -> None:
         print("\n--- 生成的Mermaid图表 ---\n")
         print(final_state["mermaid_diagram"])
         print("\n--------------------------\n")
+
 
 if __name__ == "__main__":
     main()
