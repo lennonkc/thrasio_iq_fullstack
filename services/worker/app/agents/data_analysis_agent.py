@@ -70,7 +70,18 @@ class DataAnalysisAgent(BaseAgent, WorkflowNodes, WorkflowNodesPart2):
         # 定义节点间的转换逻辑
         workflow.add_edge("welcome", "select_dataset")
         workflow.add_edge("select_dataset", "show_tables")
-        workflow.add_edge("show_tables", "get_user_task")
+
+        # 条件边：表显示结果（处理空数据集）
+        workflow.add_conditional_edges(
+            "show_tables",
+            self.should_continue_after_show_tables,
+            {
+                "continue": "get_user_task",
+                "retry_dataset": "select_dataset",
+                "error": "handle_error",
+            },
+        )
+
         workflow.add_edge("get_user_task", "filter_task")
 
         # 条件边：任务过滤结果
@@ -192,11 +203,30 @@ class DataAnalysisAgent(BaseAgent, WorkflowNodes, WorkflowNodesPart2):
     # 条件判断方法
     def should_continue_after_filter(self, state: AppState) -> str:
         """过滤后的条件判断"""
-        if state.get("error_message"):
-            if "不安全" in state["error_message"]:
+        error_message = state.get("error_message")
+        filtered_task = state.get("filtered_task")
+
+        logger.info(
+            "安全过滤条件判断",
+            error_message=error_message,
+            filtered_task=filtered_task,
+            has_error=bool(error_message),
+        )
+
+        if error_message:
+            if "不安全" in error_message:
+                print("⚠️ 任务不安全，返回重新输入")
                 return "retry"  # 重新获取用户任务
+            print("❌ 发生其他错误，转入错误处理")
             return "error"
-        return "continue"
+
+        if filtered_task:
+            print("✅ 过滤检查通过，继续下一步")
+            return "continue"
+        else:
+            print("⚠️ 过滤任务为空，重新输入")
+            state["error_message"] = "过滤后的任务为空"
+            return "retry"
 
     def should_continue_after_generation(self, state: AppState) -> str:
         """查询生成后的条件判断"""
@@ -224,3 +254,29 @@ class DataAnalysisAgent(BaseAgent, WorkflowNodes, WorkflowNodesPart2):
                 return "error"
 
         return "execute"
+
+    def should_continue_after_show_tables(self, state: AppState) -> str:
+        """显示表格后的条件判断"""
+        error_message = state.get("error_message")
+        tables = state.get("tables_in_dataset", [])
+
+        logger.info(
+            "表格显示条件判断",
+            error_message=error_message,
+            tables_count=len(tables),
+            has_error=bool(error_message),
+        )
+
+        if error_message:
+            if "没有表格" in error_message:
+                print("⚠️ 数据集为空，请重新选择数据集")
+                # 清除错误信息，允许重试
+                state["error_message"] = None
+                return "retry_dataset"
+            return "error"
+
+        if tables:
+            return "continue"
+        else:
+            state["error_message"] = "数据集中没有表格"
+            return "retry_dataset"

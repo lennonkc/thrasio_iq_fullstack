@@ -46,26 +46,58 @@ class WorkflowNodesPart2:
             response = self.llm.invoke([HumanMessage(content=prompt)])
 
             try:
-                analysis_result = json.loads(response.content)
+                # 尝试从响应中提取JSON部分
+                response_content = response.content.strip()
+                logger.info("查询生成LLM原始响应", response=response_content)
+
+                # 如果响应包含markdown代码块，提取JSON部分
+                if "```json" in response_content:
+                    start = response_content.find("```json") + 7
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        response_content = response_content[start:end].strip()
+                elif "```" in response_content:
+                    start = response_content.find("```") + 3
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        response_content = response_content[start:end].strip()
+
+                analysis_result = json.loads(response_content)
 
                 # 提取生成的查询
                 queries = []
-                for query_info in analysis_result["sql_queries"]:
-                    queries.append(query_info["sql"])
+                for query_info in analysis_result.get("sql_queries", []):
+                    if isinstance(query_info, dict) and "sql" in query_info:
+                        sql = query_info["sql"]
+                        # 修复表名格式
+                        fixed_sql = self._fix_table_names_in_query(
+                            sql, state["selected_dataset"], state["tables_in_dataset"]
+                        )
+                        queries.append(fixed_sql)
+                    elif isinstance(query_info, str):
+                        # 修复表名格式
+                        fixed_sql = self._fix_table_names_in_query(
+                            query_info,
+                            state["selected_dataset"],
+                            state["tables_in_dataset"],
+                        )
+                        queries.append(fixed_sql)
 
                 state["generated_queries"] = queries
 
                 print(f"✓ 已生成 {len(queries)} 个查询")
-                print(f"分析意图: {analysis_result['analysis_intent']}")
+                print(f"分析意图: {analysis_result.get('analysis_intent', '未提供')}")
 
                 logger.info(
                     "查询生成完成",
                     queries_count=len(queries),
-                    analysis_intent=analysis_result["analysis_intent"],
+                    analysis_intent=analysis_result.get("analysis_intent"),
                 )
 
-            except json.JSONDecodeError:
-                logger.error("查询生成响应解析失败", response=response.content)
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.error(
+                    "查询生成响应解析失败", response=response.content, error=str(e)
+                )
                 state["error_message"] = "查询生成失败，请重新描述任务"
 
         except Exception as e:
@@ -308,10 +340,17 @@ class WorkflowNodesPart2:
     # 辅助方法
     def _format_schema_info(self, table_schemas: Dict[str, List], dataset: str) -> str:
         """格式化表结构信息"""
-        schema_info = f"数据集: {dataset}\\n\\n"
+        schema_info = f"数据集: {dataset}\\n"
+        schema_info += (
+            f"重要提醒: 在SQL查询中，表名必须使用完整格式 `{dataset}.table_name`\\n\\n"
+        )
 
         for table_name, schema in table_schemas.items():
             schema_info += f"表名: {table_name}\\n"
+            schema_info += f"完整表名格式: {dataset}.{table_name}\\n"
+            schema_info += (
+                f"SQL查询示例: SELECT * FROM `{dataset}.{table_name}` LIMIT 10\\n"
+            )
             schema_info += "字段:\\n"
 
             for field in schema:
@@ -357,3 +396,40 @@ class WorkflowNodesPart2:
             results_summary += "\\n"
 
         return results_summary
+
+    def _fix_table_names_in_query(
+        self, query: str, dataset: str, tables: List[str]
+    ) -> str:
+        """修复SQL查询中的表名格式，确保使用dataset.table格式"""
+        fixed_query = query
+
+        for table in tables:
+            # 查找各种可能的表名格式
+            patterns_to_replace = [
+                f"FROM {table}",
+                f"FROM `{table}`",
+                f"from {table}",
+                f"from `{table}`",
+                f"JOIN {table}",
+                f"JOIN `{table}`",
+                f"join {table}",
+                f"join `{table}`",
+            ]
+
+            # 替换为正确的格式
+            correct_format = f"`{dataset}.{table}`"
+
+            for pattern in patterns_to_replace:
+                if pattern in fixed_query:
+                    # 确保不是已经有dataset前缀的表名
+                    if f"{dataset}." not in pattern:
+                        replacement = pattern.replace(table, correct_format).replace(
+                            f"`{correct_format}`", correct_format
+                        )
+                        fixed_query = fixed_query.replace(pattern, replacement)
+
+        # 记录是否进行了修复
+        if fixed_query != query:
+            logger.info("修复了SQL查询中的表名格式", original=query, fixed=fixed_query)
+
+        return fixed_query

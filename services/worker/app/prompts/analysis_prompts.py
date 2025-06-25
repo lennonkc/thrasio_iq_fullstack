@@ -32,8 +32,10 @@ INTENT_ANALYSIS_PROMPT = """
 1. 只生成SELECT查询语句
 2. 查询要有实际的分析价值
 3. 考虑数据量大小，合理使用LIMIT
-4. 确保表名和字段名正确
-5. 生成的SQL要能回答用户的问题
+4. **重要**: 表名必须使用完整格式 `dataset.table_name`，不能只使用表名
+5. 确保字段名正确存在于表结构中
+6. 生成的SQL要能回答用户的问题
+7. 示例正确格式: SELECT * FROM `project.dataset.table_name` LIMIT 10
 
 请以以下JSON格式回答：
 {{

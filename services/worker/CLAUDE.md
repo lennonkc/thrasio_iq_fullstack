@@ -17,6 +17,10 @@ uv remove <package>        # Remove dependency
 uv run <command>           # Run command in virtual environment
 ```
 
+**Important Dependencies:**
+- `db-dtypes`: Required for pandas BigQuery data type compatibility
+- `google-cloud-bigquery==3.27.0`: Compatible version (avoid 3.28.0)
+
 ### Code Quality
 ```bash
 uv run black .             # Format code

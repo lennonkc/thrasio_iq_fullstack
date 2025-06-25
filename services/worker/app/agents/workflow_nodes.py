@@ -99,8 +99,15 @@ class WorkflowNodes:
 
             # 显示表格信息
             print(f"\\n数据集 '{dataset}' 中的表格：\\n")
-            for i, table in enumerate(tables, 1):
-                print(f"{i}. {table}")
+            if tables:
+                for i, table in enumerate(tables, 1):
+                    print(f"{i}. {table}")
+            else:
+                print("该数据集中没有表格")
+                state["error_message"] = (
+                    f"数据集 '{dataset}' 中没有表格，请选择其他数据集"
+                )
+                return state
 
             logger.info("表格显示完成", dataset=dataset, tables_count=len(tables))
 
@@ -162,21 +169,46 @@ class WorkflowNodes:
 
             # 解析响应
             try:
-                filter_result = json.loads(response.content)
+                # 尝试从响应中提取JSON部分
+                response_content = response.content.strip()
+                logger.info("LLM原始响应", response=response_content)
 
-                if filter_result["is_safe"]:
-                    state["filtered_task"] = filter_result["cleaned_task"]
+                # 如果响应包含markdown代码块，提取JSON部分
+                if "```json" in response_content:
+                    start = response_content.find("```json") + 7
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        response_content = response_content[start:end].strip()
+                elif "```" in response_content:
+                    start = response_content.find("```") + 3
+                    end = response_content.find("```", start)
+                    if end != -1:
+                        response_content = response_content[start:end].strip()
+
+                filter_result = json.loads(response_content)
+
+                if filter_result.get("is_safe", False):
+                    state["filtered_task"] = filter_result.get(
+                        "cleaned_task", user_task
+                    )
                     print("✓ 任务安全检查通过")
                     logger.info(
-                        "任务安全过滤通过", filtered_task=filter_result["cleaned_task"]
+                        "任务安全过滤通过",
+                        filtered_task=filter_result.get("cleaned_task"),
                     )
                 else:
-                    print(f"✗ 任务安全检查失败: {filter_result['reason']}")
-                    state["error_message"] = f"任务不安全: {filter_result['reason']}"
-                    logger.warning("任务安全过滤失败", reason=filter_result["reason"])
+                    print(
+                        f"✗ 任务安全检查失败: {filter_result.get('reason', '未知原因')}"
+                    )
+                    state["error_message"] = (
+                        f"任务不安全: {filter_result.get('reason', '未知原因')}"
+                    )
+                    logger.warning(
+                        "任务安全过滤失败", reason=filter_result.get("reason")
+                    )
 
-            except json.JSONDecodeError:
-                logger.error("LLM响应解析失败", response=response.content)
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.error("LLM响应解析失败", response=response.content, error=str(e))
                 state["error_message"] = "任务安全检查失败，请重新描述任务"
 
         except Exception as e:
@@ -196,6 +228,11 @@ class WorkflowNodes:
         try:
             dataset = state["selected_dataset"]
             tables = state["tables_in_dataset"]
+
+            if not tables:
+                state["error_message"] = f"数据集 '{dataset}' 中没有表格，无法继续"
+                return state
+
             schemas = {}
 
             print("正在读取表结构...")

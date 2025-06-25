@@ -410,6 +410,21 @@ wheels = [
 ]
 
 [[package]]
+name = "db-dtypes"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/0f/eb40ff92073723f8e5d4ee0b76e2395f65e84c422c425021c8226af6a8a4/db_dtypes-1.3.0.tar.gz", hash = "sha256:7bcbc8858b07474dc85b77bb2f3ae488978d1336f5ea73b58c39d9118bc3e91b", size = 31390 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/d0/f746b7f88e3f6e6c6753fb7a078d7d2db2b8f969c7913d51b3a54f0abe53/db_dtypes-1.3.0-py2.py3-none-any.whl", hash = "sha256:7e65c59f849ccbe6f7bc4d0253edcc212a7907662906921caba3e4aadd0bc277", size = 17297 },
+]
+
+[[package]]
 name = "deprecated"
 version = "1.2.18"
 source = { registry = "https://pypi.org/simple" }
@@ -670,7 +685,7 @@ wheels = [
 
 [[package]]
 name = "google-cloud-bigquery"
-version = "3.28.0"
+version = "3.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-api-core", extra = ["grpc"] },
@@ -681,9 +696,9 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/01/71/6bf23975ad8e865afb2b1ac2cfa22dbb332a24754763391820fc1402a662/google_cloud_bigquery-3.28.0.tar.gz", hash = "sha256:161f9f424400f7bd0a4885ee80027f0030f4f5ff6feaaa1c30bb12c2c5a0e783", size = 465074 }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/05/633ce6686b1fed2cd364fa4698bfa6d586263cd4795d012584f8097061e1/google_cloud_bigquery-3.27.0.tar.gz", hash = "sha256:379c524054d7b090fa56d0c22662cc6e6458a6229b6754c0e7177e3a73421d2c", size = 456964 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/10/696686774a87909b14b6a29e4f5819754c2269029437354627d04d5b6279/google_cloud_bigquery-3.28.0-py2.py3-none-any.whl", hash = "sha256:29a0ed6ea19eab9bf59429f66d7a2b20ebea78597e76ed6fb653a581486e90c8", size = 243738 },
+    { url = "https://files.pythonhosted.org/packages/f5/40/4b11a4a8839de8ce802a3ccd60b34e70ce10d13d434a560534ba98f0ea3f/google_cloud_bigquery-3.27.0-py2.py3-none-any.whl", hash = "sha256:b53b0431e5ba362976a4cd8acce72194b4116cdf8115030c7b339b884603fcc3", size = 240100 },
 ]
 
 [[package]]
@@ -2828,6 +2843,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "anthropic" },
+    { name = "db-dtypes" },
     { name = "fastapi" },
     { name = "google-auth" },
     { name = "google-cloud-bigquery" },
@@ -2873,9 +2889,10 @@ dev = [
 requires-dist = [
     { name = "aiofiles", specifier = "==24.1.0" },
     { name = "anthropic", specifier = "==0.42.0" },
+    { name = "db-dtypes", specifier = "==1.3.0" },
     { name = "fastapi", specifier = "==0.115.6" },
     { name = "google-auth", specifier = "==2.37.0" },
-    { name = "google-cloud-bigquery", specifier = "==3.28.0" },
+    { name = "google-cloud-bigquery", specifier = "==3.27.0" },
     { name = "google-cloud-logging", specifier = "==3.12.0" },
     { name = "google-cloud-storage", specifier = "==2.19.0" },
     { name = "httpx", specifier = "==0.28.1" },
