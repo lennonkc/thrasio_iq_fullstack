@@ -13,189 +13,147 @@
 thrasio_iq_backend/
 ├── README.md                          # 项目说明文档
 ├── .gitignore                         # Git忽略文件
-├── docker-compose.yml                 # 本地开发环境编排
-├── Makefile                           # 常用命令快捷方式
-├── requirements.txt                   # Python依赖管理
-├── pyproject.toml                     # Python项目配置
-├── .env.example                       # 环境变量模板
+├── debug_logger.py                    # 调试日志记录器
+├── pyrightconfig.json                 # Pyright 配置文件
 ├── .github/                           # GitHub Actions CI/CD
 │   └── workflows/
-│       ├── ci.yml                     # 持续集成流程
-│       ├── cd-staging.yml             # 测试环境部署
-│       └── cd-production.yml          # 生产环境部署
+├── .vscode/                           # VSCode 编辑器配置
+├── app/                               # (似乎是旧的或占位的目录)
+│   └── memory/
+│       └── storage/
+├── config/                            # 配置文件 (目前为空)
 ├── docs/                              # 项目文档
-│   ├── api/                           # API文档
-│   ├── architecture/                  # 架构设计文档
-│   ├── deployment/                    # 部署指南
-│   └── development/                   # 开发指南
+│   ├── project_structure.md           # 项目结构文档 (本文档)
+│   ├── tech_stack.md                  # 技术栈文档
+│   ├── api/                           # API文档 (目前为空)
+│   ├── architecture/                  # 架构设计文档 (目前为空)
+│   ├── deployment/                    # 部署相关文档
+│   │   ├── agent1_bigquery_tools.md
+│   │   ├── agent1_LangGraph设计.md
+│   │   └── agent1_plan.md
+│   ├── development/                   # 开发相关文档
+│   │   └── agent1.md
+│   └── knowledge/                     # 背景知识和研究
+│       ├── agent_vs_workflow.md
+│       ├── Enterprise_Multi_Agent_System_Research.md
+│       ├── final_project_structure.md
+│       ├── gdoc中的需求文档.md
+│       └── google-cloud-bigquery-v3.34.0-analysis_by_tavily.md
 ├── infrastructure/                    # 基础设施即代码(IaC)
-│   ├── terraform/                     # Terraform配置
-│   │   ├── environments/
-│   │   │   ├── dev/
-│   │   │   ├── staging/
-│   │   │   └── production/
-│   │   ├── modules/                   # 可复用的Terraform模块
-│   │   └── scripts/                   # 部署脚本
-│   └── docker/                        # Docker配置
-│       ├── api/
-│       ├── worker/
-│       └── frontend/
+│   ├── docker/                        # Docker配置
+│   │   ├── api/
+│   │   ── frontend/
+│   │   └── worker/
+│   └── terraform/                     # Terraform配置
+│       ├── environments/
+│       │   ├── dev/
+│       │   ├── production/
+│       │   └── staging/
+│       ├── modules/                   # 可复用的Terraform模块
+│       └── scripts/                   # 部署脚本
+├── monitoring/                        # 监控配置
+│   ├── alerts/
+│   ├── grafana/
+│   └── prometheus/
+├── scripts/                           # 脚本工具
+│   ├── deployment/
+│   ├── migration/
+│   ├── monitoring/
+│   └── setup/
 ├── services/                          # 微服务目录
-│   ├── api/                           # FastAPI主服务
+│   ├── api/                           # API主服务 (FastAPI)
 │   │   ├── app/
-│   │   │   ├── __init__.py
-│   │   │   ├── main.py                # FastAPI应用入口
-│   │   │   ├── core/                  # 核心配置
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── config.py          # 应用配置
-│   │   │   │   ├── security.py       # 安全相关
-│   │   │   │   └── logging.py        # 日志配置
-│   │   │   ├── api/                   # API路由
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── deps.py            # 依赖注入
-│   │   │   │   ├── v1/                # API版本1
-│   │   │   │   │   ├── __init__.py
-│   │   │   │   │   ├── auth.py        # 认证相关API
-│   │   │   │   │   ├── chat.py        # 聊天API
-│   │   │   │   │   ├── agents.py      # Agent管理API
-│   │   │   │   │   └── tasks.py       # 任务管理API
-│   │   │   │   └── middleware/        # 中间件
-│   │   │   ├── models/                # 数据模型
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── user.py
-│   │   │   │   ├── conversation.py
-│   │   │   │   ├── agent.py
-│   │   │   │   └── task.py
-│   │   │   ├── schemas/               # Pydantic模式
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── user.py
-│   │   │   │   ├── conversation.py
-│   │   │   │   ├── agent.py
-│   │   │   │   └── task.py
-│   │   │   ├── services/              # 业务逻辑服务
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── auth_service.py
-│   │   │   │   ├── chat_service.py
-│   │   │   │   ├── agent_service.py
-│   │   │   │   └── task_service.py
-│   │   │   ├── db/                    # 数据库相关
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── firestore.py       # Firestore连接
-│   │   │   │   ├── cloudsql.py        # Cloud SQL连接
-│   │   │   │   └── vector_search.py   # 向量搜索
-│   │   │   └── utils/                 # 工具函数
-│   │   │       ├── __init__.py
-│   │   │       ├── helpers.py
-│   │   │       └── validators.py
-│   │   ├── tests/                     # 测试文件
-│   │   │   ├── __init__.py
-│   │   │   ├── conftest.py            # pytest配置
-│   │   │   ├── unit/                  # 单元测试
-│   │   │   ├── integration/           # 集成测试
-│   │   │   └── e2e/                   # 端到端测试
-│   │   ├── Dockerfile                 # Docker构建文件
-│   │   └── requirements.txt           # 服务依赖
-│   ├── worker/                        # Agent Worker服务
-│   │   ├── app/
-│   │   │   ├── __init__.py
-│   │   │   ├── main.py                # Worker入口
+│   │   │   ├── api/
+│   │   │   │   ├── middleware/
+│   │   │   │   └── v1/
 │   │   │   ├── core/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── config.py
-│   │   │   │   └── logging.py
-│   │   │   ├── agents/                # Agent实现
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── base_agent.py      # 基础Agent类
-│   │   │   │   ├── chat_agent.py      # 聊天Agent
-│   │   │   │   ├── task_agent.py      # 任务执行Agent
-│   │   │   │   └── workflow_agent.py  # 工作流Agent
-│   │   │   ├── tools/                 # Agent工具
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── base_tool.py       # 基础工具类
-│   │   │   │   ├── netsuite/          # NetSuite集成
-│   │   │   │   ├── zendesk/           # Zendesk集成
-│   │   │   │   ├── gmail/             # Gmail集成
-│   │   │   │   └── monday/            # Monday.com集成
-│   │   │   ├── workflows/             # LangGraph工作流
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── chat_workflow.py
-│   │   │   │   ├── task_workflow.py
-│   │   │   │   └── multi_agent_workflow.py
-│   │   │   ├── memory/                # 记忆管理
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── conversation_memory.py
-│   │   │   │   └── vector_memory.py
-│   │   │   ├── processors/            # 任务处理器
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── pubsub_processor.py
-│   │   │   │   └── task_processor.py
+│   │   │   ├── db/
+│   │   │   ├── models/
+│   │   │   ├── schemas/
+│   │   │   ├── services/
 │   │   │   └── utils/
-│   │   │       ├── __init__.py
-│   │   │       ├── gcp_utils.py
-│   │   │       └── langsmith_utils.py
-│   │   ├── tests/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
+│   │   └── tests/
+│   │       ├── e2e/
+│   │       ├── integration/
+│   │       └── unit/
+│   ├── frontend/                      # 前端服务 (Next.js)
+│   │   ├── public/
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   │   ├── agents/
+│   │   │   │   ├── auth/
+│   │   │   │   ├── chat/
+│   │   │   │   └── dashboard/
+│   │   │   ├── components/
+│   │   │   │   ├── agents/
+│   │   │   │   ├── chat/
+│   │   │   │   ├── layout/
+│   │   │   │   └── ui/
+│   │   │   ├── hooks/
+│   │   │   ├── lib/
+│   │   │   ├── styles/
+│   │   │   └── types/
+│   │   └── tests/
 │   ├── slack-bot/                     # Slack集成服务
 │   │   ├── app/
-│   │   │   ├── __init__.py
-│   │   │   ├── main.py
-│   │   │   ├── handlers/              # Slack事件处理
-│   │   │   ├── commands/              # Slack命令
+│   │   │   ├── commands/
+│   │   │   ├── handlers/
 │   │   │   └── utils/
-│   │   ├── tests/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   └── frontend/                      # Next.js前端服务
-│       ├── src/
-│       │   ├── app/                   # App Router (Next.js 13+)
-│       │   │   ├── layout.tsx
-│       │   │   ├── page.tsx
-│       │   │   ├── auth/
-│       │   │   ├── chat/
-│       │   │   ├── agents/
-│       │   │   └── dashboard/
-│       │   ├── components/            # React组件
-│       │   │   ├── ui/                # shadcn/ui组件
-│       │   │   ├── chat/
-│       │   │   ├── agents/
-│       │   │   └── layout/
-│       │   ├── lib/                   # 工具库
-│       │   │   ├── auth.ts            # NextAuth配置
-│       │   │   ├── api.ts             # API客户端
-│       │   │   ├── utils.ts
-│       │   │   └── validations.ts
-│       │   ├── hooks/                 # React Hooks
-│       │   ├── types/                 # TypeScript类型定义
-│       │   └── styles/                # 样式文件
-│       ├── public/                    # 静态资源
-│       ├── tests/                     # 前端测试
-│       ├── package.json
-│       ├── next.config.js
-│       ├── tailwind.config.js
-│       ├── tsconfig.json
-│       └── Dockerfile
-├── shared/                            # 共享代码库
-│   ├── __init__.py
-│   ├── models/                        # 共享数据模型
-│   ├── schemas/                       # 共享Pydantic模式
-│   ├── utils/                         # 共享工具函数
-│   ├── constants/                     # 常量定义
-│   └── exceptions/                    # 自定义异常
-├── scripts/                           # 脚本工具
-│   ├── setup/                         # 环境设置脚本
-│   ├── migration/                     # 数据迁移脚本
-│   ├── deployment/                    # 部署脚本
-│   └── monitoring/                    # 监控脚本
-├── config/                            # 配置文件
-│   ├── development.yml
-│   ├── staging.yml
-│   ├── production.yml
-│   └── secrets.example.yml
-└── monitoring/                        # 监控配置
-    ├── grafana/                       # Grafana仪表板
-    ├── prometheus/                    # Prometheus配置
-    └── alerts/                        # 告警规则
+│   │   └── tests/
+│   └── worker/                        # Agent Worker服务
+│       ├── .env.example
+│       ├── CLAUDE.md
+│       ├── pyproject.toml
+│       ├── pyrightconfig.json
+│       ├── requirements.txt
+│       ├── test_imports.py
+│       ├── uv.lock
+│       ├── app/
+│       │   ├── __init__.py
+│       │   ├── bigquery_config_template.json
+│       │   ├── cli.py                 # Worker服务的命令行接口
+│       │   ├── agents/                # Agent实现
+│       │   │   ├── __init__.py
+│       │   │   ├── base_agent.py      # 基础Agent类
+│       │   │   ├── data_analysis_agent.md
+│       │   │   ├── data_analysis_agent.py # 数据分析Agent
+│       │   │   ├── state.py           # Agent状态管理
+│       │   │   ├── test_get_all_datasets_of_project.py
+│       │   │   ├── workflow_nodes_part2.py
+│       │   │   └── workflow_nodes.py  # LangGraph工作流节点
+│       │   ├── core/                  # 核心配置
+│       │   │   ├── __init__.py
+│       │   │   ├── config.py          # 应用配置
+│       │   │   ├── exceptions.py      # 自定义异常
+│       │   │   └── logging.py         # 日志配置
+│       │   ├── memory/                # 记忆管理
+│       │   │   ├── external_memory.py
+│       │   │   └── storage/
+│       │   ├── processors/            # 任务处理器 (目前为空)
+│       │   ├── prompts/               # Prompt模板
+│       │   │   └── analysis_prompts.py
+│       │   ├── tools/                 # Agent工具
+│       │   │   ├── bigquery/          # BigQuery 工具
+│       │   │   │   ├── client.py
+│       │   │   │   ├── dataset_explorer.py
+│       │   │   │   ├── query_builder.py
+│       │   │   │   ├── query_executor.py
+│       │   │   │   └── schema_manager.py
+│       │   │   ├── gmail/
+│       │   │   ├── looker/
+│       │   │   ├── monday/
+│       │   │   ├── netsuite/
+│       │   │   └── zendesk/
+│       │   ├── utils/                 # 工具函数 (目前为空)
+│       │   └── workflows/             # LangGraph工作流 (目前为空)
+│       └── tests/
+│           └── test_config.py
+└── shared/                            # 共享代码库
+    ├── constants/
+    ├── exceptions/
+    ├── models/
+    ├── schemas/
+    └── utils/
 ```
 
 ## 核心设计原则
@@ -255,35 +213,6 @@ thrasio_iq_backend/
 - **追踪**: LangSmith
 - **监控**: Google Cloud Monitoring
 - **告警**: Google Cloud Alerting
-
-## 开发工作流
-
-### 1. 本地开发
-```bash
-# 启动本地开发环境
-make dev-up
-
-# 运行测试
-make test
-
-# 代码格式化
-make format
-
-# 类型检查
-make type-check
-```
-
-### 2. CI/CD流程
-1. **代码提交**: 触发GitHub Actions
-2. **质量检查**: 代码风格、类型检查、安全扫描
-3. **自动测试**: 单元测试、集成测试
-4. **构建镜像**: Docker镜像构建和推送
-5. **部署**: 自动部署到测试/生产环境
-
-### 3. 环境管理
-- **开发环境**: 本地Docker Compose
-- **测试环境**: GCP Cloud Run (自动部署)
-- **生产环境**: GCP Cloud Run (手动审批)
 
 ## 安全考虑
 
