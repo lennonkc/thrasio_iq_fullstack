@@ -113,9 +113,9 @@ class TestLangGraphAgent:
 def main() -> None:
     """主执行函数"""
     # 确保已设置必要的环境变量（在.env文件中）
-    # GCP_PROJECT_ID="thrasio-dev-ai-agent"  # 默认GCP项目
-    # GCP_BIGQUERY_PROJECT_ID="thrasio-dev-data-wh-7ee095"  # BigQuery专用项目
-    # LLM_PROJECT_ID="thrasio-dev-ai-agent"  # LLM项目
+    # GCP_PROJECT_ID="thrasio-dev-***"  # 默认GCP项目
+    # GCP_BIGQUERY_PROJECT_ID="thrasio-dev-data-***"  # BigQuery专用项目
+    # LLM_PROJECT_ID="thrasio-dev-***"  # LLM项目
     # LANGSMITH_TRACING="true"  # 可选：启用Langsmith追踪
     # LANGSMITH_API_KEY="..."  # 可选：Langsmith API密钥
     # LANGSMITH_PROJECT="..."  # 可选：Langsmith项目名称

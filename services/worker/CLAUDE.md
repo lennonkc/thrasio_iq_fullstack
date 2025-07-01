@@ -90,8 +90,8 @@ Key logging components:
 ### Google Cloud Integration
 
 **Dual Project Setup**:
-- Main GCP project: `thrasio-dev-ai-agent` (for AI/ML services)
-- BigQuery project: `thrasio-dev-data-wh-7ee095` (for data warehouse)
+- Main GCP project: `thrasio-dev-ai***` (for AI/ML services)
+- BigQuery project: `thrasio-dev-data***` (for data warehouse)
 
 **Authentication**: Uses Google Application Default Credentials or service account JSON files
 

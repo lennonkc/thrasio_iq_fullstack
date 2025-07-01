@@ -98,8 +98,8 @@ uv run python app/cli.py --streaming
 - **安全过滤**: LLM驱动的SQL安全检查，防止危险操作
 
 ### 项目配置 ✅
-- **BigQuery项目ID**: "thrasio-dev-data-wh-7ee095"
-- **LLM项目ID**: "thrasio-dev-ai-agent"  
+- **BigQuery项目ID**: "thrasio-dev-data-***"
+- **LLM项目ID**: "thrasio-dev-***"  
 - **包管理**: uv (替代pip)
 - **Python环境**: 3.11+ (.venv虚拟环境)
 

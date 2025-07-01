@@ -1,16 +1,21 @@
 """Configuration management for the worker service."""
 
 import os
+from pathlib import Path
 from typing import Optional, Dict, Any, List
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from enum import Enum
 from dotenv import load_dotenv
+
+# Build the absolute path to the .env file, which is in the parent directory of 'app'
+# This makes loading robust, regardless of the current working directory.
+env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
 class Environment(str, Enum):
     """Application environment types."""
-
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -19,7 +24,6 @@ class Environment(str, Enum):
 
 class LogLevel(str, Enum):
     """Logging levels."""
-
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -27,46 +31,27 @@ class LogLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
-class GoogleCloudConfig(BaseSettings):
+class GoogleCloudConfig(BaseModel):
     """Google Cloud configuration."""
-
-    # Default GCP project for most services (AI Agent)
-    project_id: str = Field(default="thrasio-dev-ai-agent", env="GCP_PROJECT_ID")
-    region: str = Field(default="us-central1", env="GCP_REGION")
-    credentials_path: Optional[str] = Field(
-        default=None, env="GOOGLE_APPLICATION_CREDENTIALS"
-    )
-
-    # BigQuery specific - uses separate project
-    bigquery_project_id: str = Field(
-        default="thrasio-dev-data-wh-7ee095", env="GCP_BIGQUERY_PROJECT_ID"
-    )
-    bigquery_dataset: str = Field(default="analytics", env="GCP_BIGQUERY_DATASET")
-    bigquery_location: str = Field(default="US", env="GCP_BIGQUERY_LOCATION")
-    bigquery_timeout: int = Field(default=60, env="GCP_BIGQUERY_TIMEOUT")
-    bigquery_max_results: int = Field(default=10000, env="GCP_BIGQUERY_MAX_RESULTS")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    project_id: str
+    bigquery_project_id: str
+    region: str = "us-central1"
+    credentials_path: Optional[str] = None
+    bigquery_dataset: str = "analytics"
+    bigquery_location: str = "US"
+    bigquery_timeout: int = 60
+    bigquery_max_results: int = 10000
 
 
-class LLMConfig(BaseSettings):
+class LLMConfig(BaseModel):
     """Large Language Model configuration."""
-
-    provider: str = Field(default="vertex-ai", env="LLM_PROVIDER")
-    model_name: str = Field(default="gemini-2.5-flash", env="LLM_MODEL_NAME")
-    temperature: float = Field(default=0.1, env="LLM_TEMPERATURE")
-    # max_tokens: int = Field(default=2048, env="LLM_MAX_TOKENS")
-    timeout: int = Field(default=30, env="LLM_TIMEOUT")
-
-    # Vertex AI specific
-    project_id: str = Field(default="thrasio-dev-ai-agent", env="LLM_PROJECT_ID")
-    vertex_ai_location: str = Field(default="us-central1", env="LLM_VERTEX_AI_LOCATION")
-    credentials_path: Optional[str] = Field(
-        default=None, env="LLM_GOOGLE_APPLICATION_CREDENTIALS"
-    )
+    provider: str = "vertex-ai"
+    model_name: str = "gemini-2.5-flash"
+    temperature: float = 0.1
+    timeout: int = 30
+    project_id: str
+    vertex_ai_location: str = "us-central1"
+    credentials_path: Optional[str] = None
 
     @field_validator("temperature")
     @classmethod
@@ -75,44 +60,24 @@ class LLMConfig(BaseSettings):
             raise ValueError("temperature must be between 0 and 2")
         return v
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
 
-
-class WorkerConfig(BaseSettings):
+class WorkerConfig(BaseModel):
     """Worker-specific configuration."""
-
-    max_concurrent_tasks: int = Field(default=10, env="WORKER_MAX_CONCURRENT_TASKS")
-    task_timeout: int = Field(default=300, env="WORKER_TASK_TIMEOUT")  # 5 minutes
-    retry_attempts: int = Field(default=3, env="WORKER_RETRY_ATTEMPTS")
-    retry_delay: int = Field(default=5, env="WORKER_RETRY_DELAY")  # seconds
-
-    # Queue settings
-    queue_name: str = Field(default="data_analysis", env="WORKER_QUEUE_NAME")
-    dead_letter_queue: str = Field(
-        default="data_analysis_dlq", env="WORKER_DEAD_LETTER_QUEUE"
-    )
-
-    # Workflow settings
-    workflow_timeout: int = Field(
-        default=600, env="WORKER_WORKFLOW_TIMEOUT"
-    )  # 10 minutes
-    max_workflow_retries: int = Field(default=2, env="WORKER_MAX_WORKFLOW_RETRIES")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    max_concurrent_tasks: int = 10
+    task_timeout: int = 300
+    retry_attempts: int = 3
+    retry_delay: int = 5
+    queue_name: str = "data_analysis"
+    dead_letter_queue: str = "data_analysis_dlq"
+    workflow_timeout: int = 600
+    max_workflow_retries: int = 2
 
 
-class LangsmithConfig(BaseSettings):
+class LangsmithConfig(BaseModel):
     """Langsmith tracing configuration."""
-
-    tracing: bool = Field(default=False, env="LANGSMITH_TRACING")
-    api_key: Optional[str] = Field(default=None, env="LANGSMITH_API_KEY")
-    project: str = Field(default="thrasio_iq_backend", env="LANGSMITH_PROJECT")
+    tracing: bool = False
+    api_key: Optional[str] = None
+    project: str = "thrasio_iq_backend"
 
     @field_validator("tracing", mode="before")
     @classmethod
@@ -121,30 +86,22 @@ class LangsmithConfig(BaseSettings):
             return v.lower() in ("true", "1", "yes", "on")
         return v
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
-
 
 class Settings(BaseSettings):
     """Main application settings."""
+    model_config = SettingsConfigDict(env_nested_delimiter='__')
 
-    # Basic app settings
-    app_name: str = Field(default="Thrasio IQ Worker", env="APP_NAME")
-    app_version: str = Field(default="1.0.0", env="APP_VERSION")
-    environment: Environment = Field(default=Environment.DEVELOPMENT, env="ENVIRONMENT")
-    debug: bool = Field(default=False, env="DEBUG")
+    app_name: str = "Thrasio IQ Worker"
+    app_version: str = "1.0.0"
+    environment: Environment = Environment.DEVELOPMENT
+    debug: bool = False
+    log_level: LogLevel = LogLevel.INFO
+    log_format: str = "json"
 
-    # Logging
-    log_level: LogLevel = Field(default=LogLevel.INFO, env="LOG_LEVEL")
-    log_format: str = Field(default="json", env="LOG_FORMAT")  # json or text
-
-    # Service configurations
-    google_cloud: GoogleCloudConfig = Field(default_factory=GoogleCloudConfig)
-    llm: LLMConfig = Field(default_factory=LLMConfig)
-    worker: WorkerConfig = Field(default_factory=WorkerConfig)
-    langsmith: LangsmithConfig = Field(default_factory=LangsmithConfig)
+    google_cloud: GoogleCloudConfig
+    llm: LLMConfig
+    worker: WorkerConfig
+    langsmith: LangsmithConfig
 
     @field_validator("environment", mode="before")
     @classmethod
@@ -162,49 +119,33 @@ class Settings(BaseSettings):
 
     @property
     def is_development(self) -> bool:
-        """Check if running in development mode."""
         return self.environment == Environment.DEVELOPMENT
 
     @property
     def is_production(self) -> bool:
-        """Check if running in production mode."""
         return self.environment == Environment.PRODUCTION
 
     @property
     def is_testing(self) -> bool:
-        """Check if running in testing mode."""
         return self.environment == Environment.TESTING
 
     def get_bigquery_client_options(self) -> Dict[str, Any]:
-        """Get BigQuery client options."""
         options = {
             "project": self.google_cloud.bigquery_project_id,
             "location": self.google_cloud.bigquery_location,
         }
-
         if self.google_cloud.credentials_path:
             options["credentials_path"] = self.google_cloud.credentials_path
-
         return options
 
     def get_llm_client_options(self) -> Dict[str, Any]:
-        """Get LLM client options for Vertex AI."""
         options = {
             "project": self.llm.project_id,
             "location": self.llm.vertex_ai_location,
         }
-
         if self.llm.credentials_path:
             options["credentials_path"] = self.llm.credentials_path
-
         return options
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        validate_assignment = True
-        extra = "ignore"
 
 
 # Global settings instance
@@ -212,25 +153,15 @@ settings = None
 
 
 def get_settings() -> Settings:
-    """Get the global settings instance.
-
-    Returns:
-        Settings instance
-    """
+    """Get the global settings instance."""
     global settings
     if settings is None:
-        # Load .env file before creating Settings instance
-        load_dotenv()
         settings = Settings()
     return settings
 
 
 def reload_settings() -> Settings:
-    """Reload settings from environment.
-
-    Returns:
-        New Settings instance
-    """
+    """Reload settings from environment."""
     global settings
     settings = Settings()
     return settings
