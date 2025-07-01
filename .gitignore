@@ -57,3 +57,5 @@ override.tf.json
 # OS
 .DS_Store
 Thumbs.db
+
+services/worker/app/tools/test/*
